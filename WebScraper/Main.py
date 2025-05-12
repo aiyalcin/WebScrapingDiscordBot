@@ -4,6 +4,7 @@ from discord import app_commands
 from dotenv import load_dotenv
 import os
 import validators
+import json
 
 load_dotenv()
 
@@ -38,9 +39,9 @@ async def pricetrack(interaction: discord.Interaction):
 @client.tree.command(name="addtracker", description="Add a price tracker by supplying a site URL", guild=GUILD_ID)
 async def addtracker(interaction: discord.Interaction, addtracker:str):
     if isValidUrl(addtracker):
-        await interaction.response.send_message(addtracker)
+        await interaction.response.send_message(f"✅ Now tracking: {addtracker}")
     else:
-        await interaction.response.send_message("Invalid url!")
+        await interaction.response.send_message("❌ Invalid url!")
 
 
 client.run(discordBotKey)

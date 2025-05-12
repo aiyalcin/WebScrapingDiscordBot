@@ -1,0 +1,9 @@
+{
+    "sites": [
+        {
+            "id": 1,
+            "url": "Alice",
+            "current_price": 50
+        }
+    ]
+}
