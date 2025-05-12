@@ -2,8 +2,8 @@
     "sites": [
         {
             "id": 1,
-            "url": "Alice",
-            "current_price": 50
+            "url": "",
+            "currentPrice": 50
         }
     ]
 }
