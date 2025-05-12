@@ -24,6 +24,9 @@ class Client(commands.Bot):
             print(f"Synced {len(synced)} commands to guild: {guild.id}")
         except:
             print(f"Could not sync commands to guild with guild id {guild.id}")
+    async def on_message(self, message):
+        if message.author == "Boja.":
+            await message.channel.send("Homo")
 
 
 class TrackedWebsite:
@@ -43,9 +46,22 @@ def isValidUrl(URL):
     return validators.url(URL) and URL.startswith(("http://", "https://"))
 
 
-@client.tree.command(name="pricetrack", description="Return list of tracked gear prices", guild=GUILD_ID)
+@client.tree.command(name="pricetrack", description="Return list of tracked prices", guild=GUILD_ID)
 async def pricetrack(interaction: discord.Interaction):
-    await interaction.response.send_message("Test: pricetrack")
+    prices = Scraper.getAllPrices()
+    message = ""
+    for price_object in prices:
+        message += f"\nName: {price_object['name']} - Prices: {price_object['price']}"
+    await interaction.response.send_message(message)
+
+
+@client.tree.command(name="showcurrenttracks", description="Return list of all current trackers and their URL's", guild=GUILD_ID)
+async def showcurrenttracks(interaction: discord.Interaction):
+    loaded_data = Scraper.getAllJsonData()
+    message = ""
+    for data in loaded_data:
+        message += f"\nID: {data['id']} Name: {data['name']} - Website URL: {data['url']}"
+    await interaction.response.send_message(message)
 
 
 @client.tree.command(name="addtracker", description="Add a price tracker by supplying a site URL", guild=GUILD_ID)

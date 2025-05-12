@@ -1,0 +1,18 @@
+{
+  "sites": [
+    {
+      "id": 1,
+      "name": "Backpack",
+      "url": "https://www.mammut.com/nl/nl/products/2520-03842-0001/trion-38",
+      "selector": ".PDPIntroControlsDropdown_price__QtVqb > div:nth-child(1) > span:nth-child(1)",
+      "currentPrice": "180"
+    },
+    {
+      "id": 2,
+      "name": "Klimgordel",
+      "url": "https://www.bergfreunde.nl/mammut-4-slide-harness-klimgordel/?aid=7f36574ae3600eb61cb5636add93380c&pid=10004&bfgb=false&wt_cc1&gad_campaignid=17428201133",
+      "selector": ".js-price > span:nth-child(2) > span:nth-child(1)",
+      "currentPrice": "53,96"
+    }
+  ]
+}
