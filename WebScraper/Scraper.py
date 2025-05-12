@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 import requests
 import JsonHandler
+import PriceTracker
 
 
 def extractPrice(object):
@@ -16,13 +17,10 @@ def extractPrice(object):
             return None
 
         new_price_text = price_element.getText(strip=True).replace("€", "")
-        old_price_text = JsonHandler.getObject(object['id'])['currentPrice']
-
-        prices = f"NEW: {new_price_text}€ OLD: {old_price_text}€"
 
         JsonHandler.update_site_price(object['id'], new_price_text)
 
-        return prices
+        return new_price_text
     except Exception as e:
         print(f"Error extracting price for {object.get('name', 'unknown')}: {e}")
         return None
