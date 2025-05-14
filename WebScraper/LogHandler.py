@@ -32,6 +32,6 @@ def log_handler(message, type_msg):
     elif type_msg == "warn":
         print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.YELLOW}  [i]-{message}")
     elif type_msg == "log":
-        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.WHITE}  [-]-{message}")
+        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.WHITE}  [+]-{message}")
     else:
         print("[!]-MSG PRINT ERROR")

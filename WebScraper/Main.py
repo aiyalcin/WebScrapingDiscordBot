@@ -4,7 +4,7 @@ import PriceTracker
 from dotenv import load_dotenv
 import os
 import validators
-from WebScraper import Scraper
+import Scraper
 from discord.ext import tasks
 import JsonHandler
 import LogHandler
@@ -26,9 +26,6 @@ class Client(commands.Bot):
             print(f"Synced {len(synced)} commands to guild: {guild.id}")
         except:
             print(f"Could not sync commands to guild with guild id {guild.id}")
-    async def on_message(self, message):
-        if message.author == "Boja.":
-            await message.channel.send("Homo")
 
     @tasks.loop(hours=12)
     async def hourly_price_check(self):
@@ -114,10 +111,11 @@ async def showcurrenttracks(interaction: discord.Interaction):
     LogHandler.log_handler("Sending message - DONE", "log")
 
 
-@client.tree.command(name="addtracker", description="Add a price tracker by supplying a site URL", guild=GUILD_ID)
-async def addtracker(interaction: discord.Interaction, addtracker:str):
-    if isValidUrl(addtracker):
-        Scraper.addTracker(addtracker)
+@client.tree.command(name="addtracker", description="Add a price tracker by supplying a name, site URL and css selector", guild=GUILD_ID)
+async def addtracker(interaction: discord.Interaction, name:str, url:str, CSS_selector:str):
+    if isValidUrl(url):
+        newTracker = {"name":name, "url":url, "selector":CSS_selector, "currentPrice":0}
+        JsonHandler.addTracker(newTracker)
         await interaction.response.send_message(f"✅ Now tracking: {addtracker}")
     else:
         await interaction.response.send_message("❌ Invalid url!")

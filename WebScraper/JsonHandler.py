@@ -2,6 +2,30 @@ import json
 json_path = "Data/data.json"
 
 
+def addTracker(siteObject):
+    # Load existing data
+    with open('your_json_file.json', 'r') as f:
+        data = json.load(f)
+
+    # Find the highest current ID
+    max_id = max(site['id'] for site in data['sites']) if data['sites'] else 0
+
+    # Create new tracker with next ID
+    new_tracker = {
+        'id': max_id + 1,
+        'name': siteObject['name'],
+        'url': siteObject['url'],
+        'selector': siteObject['selector'],
+        'currentPrice': str(siteObject['currentPrice'])  # Convert to string to match your format
+    }
+
+    # Add the new tracker
+    data['sites'].append(new_tracker)
+
+    # Write back to file
+    with open('your_json_file.json', 'w') as f:
+        json.dump(data, f, indent=2)
+
 def getAllJsonData():
     with open("Data/data.json", "r") as file:
         loaded_data = json.load(file)['sites']
