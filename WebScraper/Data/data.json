@@ -13,6 +13,27 @@
       "url": "https://www.bergfreunde.nl/mammut-4-slide-harness-klimgordel/?aid=7f36574ae3600eb61cb5636add93380c&pid=10004&bfgb=false&wt_cc1&gad_campaignid=17428201133",
       "selector": ".js-price > span:nth-child(2) > span:nth-child(1)",
       "currentPrice": "53,96"
+    },
+    {
+      "id": 3,
+      "name": "ICE Axe",
+      "url": "https://www.snowcountry.nl/black-diamond-venom-adze-9741.html?artikel_maat=65040&gad_campaignid=17430740046",
+      "selector": "#product-price-29837 > span:nth-child(1)",
+      "currentPrice": "125,96"
+    },
+    {
+      "id": 4,
+      "name": "Scrampons",
+      "url": "https://www.bergfreunde.nl/petzl-irvis-stijgijzers/?aid=c46988aa17c1ffd932157cf82b4b2967&pid=10004&bfgb=false&wt_cc1&gad_campaignid=17428201133",
+      "selector": ".js-price > span:nth-child(2) > span:nth-child(1)",
+      "currentPrice": "118,96"
+    },
+    {
+      "id": 5,
+      "name": "Powerbank",
+      "url": "https://www.bever.nl/p/xtorm-rugged-solar-powerbank-10-000-B3GA390062.html?colour=4130",
+      "selector": ".as-m-product-price > div:nth-child(1) > span:nth-child(1) > strong:nth-child(1)",
+      "currentPrice": "99,95"
     }
   ]
 }

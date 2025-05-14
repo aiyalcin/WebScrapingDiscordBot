@@ -5,6 +5,7 @@ import PriceTracker
 
 
 def extractPrice(object):
+    print(f"Now scraping ID: {object['id']}")
     try:
         url = object['url']
         selector = object['selector']
@@ -16,7 +17,7 @@ def extractPrice(object):
             print(f"Could not find price element for {object['name']}")
             return None
 
-        new_price_text = price_element.getText(strip=True).replace("€", "")
+        new_price_text = price_element.getText(strip=True).replace("€", "").replace(" ", "")
 
         JsonHandler.update_site_price(object['id'], new_price_text)
 

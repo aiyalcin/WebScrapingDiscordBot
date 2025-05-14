@@ -7,6 +7,7 @@ import validators
 from WebScraper import Scraper
 from discord.ext import tasks
 import JsonHandler
+import LogHandler
 load_dotenv()
 
 try:
@@ -74,20 +75,43 @@ def isValidUrl(URL):
 
 @client.tree.command(name="pricetrack", description="Return list of tracked prices", guild=GUILD_ID)
 async def pricetrack(interaction: discord.Interaction):
-    prices = Scraper.getAllPrices()
-    message = ""
-    for price_object in prices:
-        message += f"\nName: {price_object['name']} - Prices: {price_object['price']}"
-    await interaction.response.send_message(message)
+    try:
+        # Immediately acknowledge the interaction
+        await interaction.response.defer()
+
+        LogHandler.log_handler("Scraping prices", "log")
+        prices = Scraper.getAllPrices()
+        LogHandler.log_handler("Scraping prices - DONE", "log")
+
+        message = ""
+        LogHandler.log_handler("Creating message", "log")
+        for price_object in prices:
+            message += f"\nName: {price_object['name']} - Prices: {price_object['price']}"
+        LogHandler.log_handler("Creating message - DONE", "log")
+
+        LogHandler.log_handler("Sending message", "log")
+        # Use followup.send instead of interaction.response.send_message
+        await interaction.followup.send(message)
+        LogHandler.log_handler("Sending message - DONE", "log")
+
+    except Exception as e:
+        LogHandler.log_handler(f"Error in pricetrack: {str(e)}", "error")
+        await interaction.followup.send("An error occurred while processing your request.")
 
 
 @client.tree.command(name="showcurrenttracks", description="Return list of all current trackers and their URL's", guild=GUILD_ID)
 async def showcurrenttracks(interaction: discord.Interaction):
+    LogHandler.log_handler("Loading json data", "log")
     loaded_data = JsonHandler.getAllJsonData()
+    LogHandler.log_handler("Loading json data - DONE", "log")
     message = ""
+    LogHandler.log_handler("Creating message", "log")
     for data in loaded_data:
         message += f"\nID: {data['id']} Name: {data['name']} - Website URL: {data['url']}"
+    LogHandler.log_handler("Creating message - DONE", "log")
+    LogHandler.log_handler("Sending message", "log")
     await interaction.response.send_message(message)
+    LogHandler.log_handler("Sending message - DONE", "log")
 
 
 @client.tree.command(name="addtracker", description="Add a price tracker by supplying a site URL", guild=GUILD_ID)
