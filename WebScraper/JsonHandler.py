@@ -1,6 +1,6 @@
 import json
 json_path = "Data/data.json"
-
+import LogHandler as log
 
 def addTracker(siteObject):
     # Load existing data
@@ -40,11 +40,10 @@ def getObject(id):
         for site in data['sites']:
             if site['id'] == id:
                 return site
-
-        print(f"No site found with ID {id}")
+        log.log_handler(f"No site found with ID {id}", "error")
         return None
     except Exception as e:
-        print(f"Error retrieving site: {e}")
+        log.log_handler(f"Error retrieving site: {e}", "error")
         return None
 
 
@@ -65,4 +64,4 @@ def update_site_price(site_id, new_price):
             json.dump(data, file, indent=2)
 
     except Exception as e:
-        print(f"Error updating price in JSON file: {e}")
+        log.log_handler(f"Error updating price in JSON file: {e}", "error")

@@ -2,10 +2,11 @@ from bs4 import BeautifulSoup
 import requests
 import JsonHandler
 import PriceTracker
+import LogHandler as log
 
 
 def extractPrice(object):
-    print(f"Now scraping ID: {object['id']}")
+    log.log_handler(f"Now scraping ID: {object['id']}", "log")
     try:
         url = object['url']
         selector = object['selector']
@@ -14,7 +15,7 @@ def extractPrice(object):
         price_element = soup.select_one(selector)
 
         if not price_element:
-            print(f"Could not find price element for {object['name']}")
+            log.log_handler(f"Could not find price element for {object['name']}", "warn")
             return None
 
         new_price_text = price_element.getText(strip=True).replace("€", "").replace(" ", "")
@@ -23,7 +24,7 @@ def extractPrice(object):
 
         return new_price_text
     except Exception as e:
-        print(f"Error extracting price for {object.get('name', 'unknown')}: {e}")
+        log.log_handler(f"Error extracting price for {object.get('name', 'unknown')}: {e}", "error")
         return None
 
 

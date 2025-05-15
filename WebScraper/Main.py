@@ -7,13 +7,13 @@ import validators
 import Scraper
 from discord.ext import tasks
 import JsonHandler
-import LogHandler
+import LogHandler as log
 load_dotenv()
 
 try:
     discordBotKey = os.getenv("discordBotToken")
 except:
-    print(f"Error: {Exception}")
+    log.log_handler("Error: {Exception}", "error")
 
 
 class Client(commands.Bot):
@@ -23,9 +23,9 @@ class Client(commands.Bot):
         try:
             guild = discord.Object(id=1371213848518070282)
             synced = await self.tree.sync(guild=guild)
-            print(f"Synced {len(synced)} commands to guild: {guild.id}")
+            log.log_handler("Synced {len(synced)} commands to guild: {guild.id}", "log")
         except:
-            print(f"Could not sync commands to guild with guild id {guild.id}")
+            log.log_handler(f"Could not sync commands to guild with guild id {guild.id}", "error")
 
     @tasks.loop(hours=12)
     async def hourly_price_check(self):
@@ -33,7 +33,7 @@ class Client(commands.Bot):
         channel = self.get_channel(1371577580611960933)  # Replace with actual channel ID
 
         if channel is None:
-            print("Channel not found!")
+            log.log_handler("Channel not found!", "error")
             return
 
         changed_prices = PriceTracker.CheckPrices()
@@ -76,39 +76,39 @@ async def pricetrack(interaction: discord.Interaction):
         # Immediately acknowledge the interaction
         await interaction.response.defer()
 
-        LogHandler.log_handler("Scraping prices", "log")
+        log.log_handler("Scraping prices", "log")
         prices = Scraper.getAllPrices()
-        LogHandler.log_handler("Scraping prices - DONE", "log")
+        log.log_handler("Scraping prices - DONE", "log")
 
         message = ""
-        LogHandler.log_handler("Creating message", "log")
+        log.log_handler("Creating message", "log")
         for price_object in prices:
             message += f"\nName: {price_object['name']} - Prices: {price_object['price']}"
-        LogHandler.log_handler("Creating message - DONE", "log")
+        log.log_handler("Creating message - DONE", "log")
 
-        LogHandler.log_handler("Sending message", "log")
+        log.log_handler("Sending message", "log")
         # Use followup.send instead of interaction.response.send_message
         await interaction.followup.send(message)
-        LogHandler.log_handler("Sending message - DONE", "log")
+        log.log_handler("Sending message - DONE", "log")
 
     except Exception as e:
-        LogHandler.log_handler(f"Error in pricetrack: {str(e)}", "error")
+        log.log_handler(f"Error in pricetrack: {str(e)}", "error")
         await interaction.followup.send("An error occurred while processing your request.")
 
 
 @client.tree.command(name="showcurrenttracks", description="Return list of all current trackers and their URL's", guild=GUILD_ID)
 async def showcurrenttracks(interaction: discord.Interaction):
-    LogHandler.log_handler("Loading json data", "log")
+    log.log_handler("Loading json data", "log")
     loaded_data = JsonHandler.getAllJsonData()
-    LogHandler.log_handler("Loading json data - DONE", "log")
+    log.log_handler("Loading json data - DONE", "log")
     message = ""
-    LogHandler.log_handler("Creating message", "log")
+    log.log_handler("Creating message", "log")
     for data in loaded_data:
         message += f"\nID: {data['id']} Name: {data['name']} - Website URL: {data['url']}"
-    LogHandler.log_handler("Creating message - DONE", "log")
-    LogHandler.log_handler("Sending message", "log")
+    log.log_handler("Creating message - DONE", "log")
+    log.log_handler("Sending message", "log")
     await interaction.response.send_message(message)
-    LogHandler.log_handler("Sending message - DONE", "log")
+    log.log_handler("Sending message - DONE", "log")
 
 
 @client.tree.command(name="addtracker", description="Add a price tracker by supplying a name, site URL and css selector", guild=GUILD_ID)
