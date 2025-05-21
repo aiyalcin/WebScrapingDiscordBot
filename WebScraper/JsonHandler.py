@@ -2,6 +2,7 @@ import json
 json_path = "Data/data.json"
 import LogHandler as log
 
+
 def addTracker(siteObject):
     # Load existing data
     with open('your_json_file.json', 'r') as f:

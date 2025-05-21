@@ -1,8 +1,11 @@
+import time
+from time import sleep
 from colorama import init
 from colorama import Fore
 from colorama import Style
 from datetime import datetime
 init(autoreset=True)
+
 
 def get_current_time():
     current_time = datetime.now()
@@ -25,13 +28,18 @@ def get_current_time():
     return time_formatted
 
 
-def log_handler(message, type_msg):
-
+def log(message, type_msg):
+    global done_message
     if type_msg == "error":
-        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.RED}  [!]-{message}")
+        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.RED}  [!]-{message}", end="\r")
     elif type_msg == "warn":
-        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.YELLOW}  [i]-{message}")
+        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.YELLOW}  [i]-{message}", end="\r")
     elif type_msg == "log":
-        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.WHITE}  [+]-{message}")
+        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.WHITE}  [-]-{message}", end="\r")
+        done_message = f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.WHITE}  [-]-{message} - DONE"
     else:
         print("[!]-MSG PRINT ERROR")
+
+
+def log_done():
+    print(done_message)
