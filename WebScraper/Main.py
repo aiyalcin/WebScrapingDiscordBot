@@ -3,202 +3,128 @@ from discord.ext import commands
 import PriceTracker
 from dotenv import load_dotenv
 import os
-import validators
-import Scraper
 from discord.ext import tasks
-import JsonHandler
 import LogHandler as logHandler
 import asyncio
+import json
+from SlashCommands import SlashCommands
 setup_event = asyncio.Event()
-bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
+bot_config = {}
 load_dotenv()
-
-
-try:
-    discordBotKey = os.getenv("discordBotToken")
-
-except:
-    logHandler.log(f"Could not get bot token from .env file. \n"
-                    f"Please check that you have a valid .env file and your token is saved in format: "
-                    f"discordBotToken = '<your token here>'", "error")
 
 
 class Client(commands.Bot):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        # Set default prefix if not provided
+        if 'command_prefix' not in kwargs:
+            kwargs['command_prefix'] = '!'
+        if 'intents' not in kwargs:
+            kwargs['intents'] = discord.Intents.all()
 
-        # Define the setbotchannel command
-        @self.command(name="setbotchannel")
-        async def set_bot_channel(ctx):
-            global bot_config
-            bot_config["guild_id"] = ctx.guild.id
-            bot_config["channel_id"] = ctx.channel.id
+        super().__init__(
+            help_command=None,  # Disable default help command
+            **kwargs
+        )
+        self._setup_complete = False
+        try:
+            with open("config.json", "r") as f:
+                global bot_config
+                bot_config = json.load(f)
+        except:
+            pass
 
-            await ctx.send(
-                f"✅ Bot channel set to {ctx.channel.mention}\n"
-                f"Guild ID: `{ctx.guild.id}`"
-            )
-            setup_event.set()
+    async def setup_hook(self):
+        await self.add_cog(SlashCommands(self))  # Load de Cog
+        if "guild_id" in bot_config:
+            guild = discord.Object(id=bot_config["guild_id"])
+            await self.tree.sync(guild=guild)
+            logHandler.log(f"Synced commands to guild: {guild.id}", "log")
+
+    async def sync_commands_to_guild(self):
+        """Helper method to sync commands to the configured guild"""
+        guild = discord.Object(id=bot_config["guild_id"])
+        self.tree.copy_global_to(guild=guild)
+        await self.tree.sync(guild=guild)
+        logHandler.log(f"Synced commands to guild: {guild.id}", "log")
+
 
     async def on_ready(self):
-        if not os.getenv("setupDone"):
-            await setup()
+        if not self._setup_complete and not os.getenv("setupDone"):
+            self._setup_complete = True
+            logHandler.log(f"Logged on as {self.user}!", "log")
 
-        if "guild_id" in bot_config:
-            target_guild = self.get_guild(bot_config["guild_id"])
-            if not target_guild:
-                logHandler.log("Error: Bot is not in the configured guild!", "error")
-                return
+            logHandler.log("Prefix command registered. Use !setbotchannel in your server.", "log")
+            logHandler.log("Please use !setbotchannel in your server to configure the bot.", "log")
         else:
-            logHandler.log("No guild configured yet!", "warning")
+            # Normal operation
+            if "guild_id" in bot_config:
+                target_guild = self.get_guild(bot_config["guild_id"])
+                if not target_guild:
+                    logHandler.log("Error: Bot is not in the configured guild!", "error")
+                    return
 
-        logHandler.log(f"Logged on as {self.user}!", "log")
-        self.hourly_price_check.start()
+                # Sync commands to specific guild
+                try:
+                    await self.sync_commands_to_guild()
+                except Exception as e:
+                    logHandler.log(f"Error syncing guild commands: {str(e)}", "error")
+            else:
+                logHandler.log("No guild configured yet!", "warning")
 
-        if "guild_id" in bot_config:
-            try:
-                guild = discord.Object(id=bot_config["guild_id"])
-                synced = await self.tree.sync(guild=guild)
-                logHandler.log(f"Synced {len(synced)} commands to guild: {guild.id}", "log")
-            except Exception as e:
-                logHandler.log(f"Could not sync commands to guild: {str(e)}", "error")
+            logHandler.log(f"Logged on as {self.user}!", "log")
+            self.hourly_price_check.start()
+
 
     @tasks.loop(hours=12)
     async def hourly_price_check(self):
+        if "channel_id" not in bot_config:
+            return
 
         channel = self.get_channel(bot_config["channel_id"])
-
         if channel is None:
-            logHandler.log("Channel not found!", "error")
             return
 
         changed_prices = PriceTracker.CheckPrices()
-
         if changed_prices:
             message = "@Pricewatch prices have changed!\nChanged prices are:\n"
             for price in changed_prices:
                 message += f"Name: {price['name']} OLD price: {price['Old price']} --> NEW price {price['New price']}\n"
             await channel.send(message)
         else:
-            await channel.send("Check in. Prices have not changed. Use /showcurrenttracks for a list of currently tracked items")
+            await channel.send("Check in. Prices have not changed.")
 
     @hourly_price_check.before_loop
     async def before_hourly_check(self):
-        await self.wait_until_ready()  # Wait until the bot is logged in
-
-
-class TrackedWebsite:
-    def __init__(self, Id, Url, CurrentPrice):
-        self.id = Id
-        self.url = Url
-        self.currentPrice = CurrentPrice
-
-
-intents = discord.Intents.default()
-intents.message_content = True
-GUILD_ID = discord.Object(id=bot_config["guild_id"])
-client = Client(command_prefix="/", intents=intents)
-
-
-@bot.command(name="setbotchannel")
-async def set_bot_channel(ctx):
-    guild_id = ctx.guild.id  # Get the guild ID
-    channel_id = ctx.channel.id  # Get the channel ID
-
-    await ctx.send(f"✅ Bot channel set to {ctx.channel.mention} (Guild ID: `{guild_id}`)")
-
-    # Save guild_id and channel_id (e.g., to a JSON config file)
-    import json
-    config = {
-        "guild_id": guild_id,
-        "channel_id": channel_id
-    }
-    with open("config.json", "w") as f:
-        json.dump(config, f)
+        await self.wait_until_ready()
 
 
 async def setup():
     logHandler.log("Bot setup started.", "log")
-    logHandler.log("Please supply bot token. The token will be saved to a hidden .env file. "
-                   "To find the file turn on hidden file view in your file explorer.", "log")
-    token = input("$ ")
-    logHandler.log("Saving token to .env file", "log")
+    token = input("Enter bot token: ").strip('"')
+
+    with open(".env", "w") as f:
+        f.write(f"discordBotToken={token}\n")
+    os.environ["setupDone"] = "true"
+
+    logHandler.log("Waiting for !setbotchannel command...", "log")
+    # Create client without duplicate prefix
+    client = Client(intents=discord.Intents.all())
+
     try:
-        os.putenv("discordBotToken", token)
-        logHandler.log_done()
-    except:
-        logHandler.log(f"Could not save token to env file. {Exception}", "error")
-    logHandler.log("Use the /setbotchannel command in discord to add the bot to your desired discord channel. "
-                   "The bot will do all of its public messaging in the channel where you run the command. "
-                   "If you wish to change the channel, run the command in the new desired channel.", "log")
-    logHandler.log("Waiting for discord command", "log")
-    bot_task = asyncio.create_task(bot.start(token))
-    await setup_event.wait()
-    logHandler.log_done()
-
-
-    logHandler.log("Setup complete!", "log")
-
-    # Keep the bot running
-    await bot_task  # Prevents the script from exiting
-
-
-
-
-
-
-def isValidUrl(URL):
-    return validators.url(URL) and URL.startswith(("http://", "https://"))
-
-
-@client.tree.command(name="pricetrack", description="Return list of tracked prices", guild=GUILD_ID)
-async def pricetrack(interaction: discord.Interaction):
-    try:
-        # Immediately acknowledge the interaction
-        await interaction.response.defer()
-
-        logHandler.log("Scraping prices", "log")
-        prices = Scraper.getAllPrices()
-        logHandler.log_done()
-
-        message = ""
-        logHandler.log("Creating message", "log")
-        for price_object in prices:
-            message += f"\nName: {price_object['name']} - Prices: {price_object['price']}"
-        logHandler.log_done()
-
-        logHandler.log("Sending message", "log")
-
-        await interaction.followup.send(message)
-        logHandler.log_done()
-
+        await client.start(token)
     except Exception as e:
-        logHandler.log(f"Error in pricetrack: {str(e)}", "error")
-        await interaction.followup.send("An error occurred while processing your request.")
+        logHandler.log(f"Failed to start bot: {str(e)}", "error")
+    finally:
+        await client.close()
 
-
-@client.tree.command(name="showcurrenttracks", description="Return list of all current trackers and their URL's", guild=GUILD_ID)
-async def showcurrenttracks(interaction: discord.Interaction):
-    logHandler.log("Loading json data", "log")
-    loaded_data = JsonHandler.getAllJsonData()
-    logHandler.log_done()
-    message = ""
-    logHandler.log("Creating message", "log")
-    for data in loaded_data:
-        message += f"\nID: {data['id']} Name: {data['name']} - Website URL: {data['url']}"
-    logHandler.log_done()
-    logHandler.log("Sending message", "log")
-    await interaction.response.send_message(message)
-    logHandler.log_done()
-
-
-@client.tree.command(name="addtracker", description="Add a price tracker by supplying a name, site URL and css selector", guild=GUILD_ID)
-async def addtracker(interaction: discord.Interaction, name: str, url: str, css_selector: str):
-    if isValidUrl(url):
-        new_tracker = {"name": name, "url": url, "selector": css_selector, "currentPrice": 0}
-        JsonHandler.addTracker(new_tracker)
-        await interaction.response.send_message(f"✅ Now tracking: {addtracker}")
-    else:
-        await interaction.response.send_message("❌ Invalid url!")
-
-client.run(discordBotKey)
+if __name__ == "__main__":
+    try:
+        discordBotKey = os.getenv("discordBotToken")
+        if discordBotKey:
+            # Create client without duplicate prefix
+            client = Client(intents=discord.Intents.all())
+            client.run(discordBotKey)
+        else:
+            asyncio.run(setup())
+    except Exception as e:
+        logHandler.log(f"Fatal error: {str(e)}", "error")

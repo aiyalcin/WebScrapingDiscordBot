@@ -31,12 +31,12 @@ def get_current_time():
 def log(message, type_msg):
     global done_message
     if type_msg == "error":
-        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.RED}  [!]-{message}", end="\r")
+        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.RED}  [!]-{message}")
     elif type_msg == "warn":
-        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.YELLOW}  [i]-{message}", end="\r")
+        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.YELLOW}  [i]-{message}")
     elif type_msg == "log":
-        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.WHITE}  [-]-{message}", end="\r")
-        done_message = f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.WHITE}  [-]-{message} - DONE"
+        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.WHITE}  [-]-{message}")
+        done_message = f"\r{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.WHITE}  [-]-{message} - DONE"
     else:
         print("[!]-MSG PRINT ERROR")
 
