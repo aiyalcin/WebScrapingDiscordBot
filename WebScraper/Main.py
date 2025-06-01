@@ -15,17 +15,24 @@ load_dotenv()
 
 class Client(commands.Bot):
     def __init__(self, *args, **kwargs):
-        # Set default prefix if not provided
         if 'command_prefix' not in kwargs:
             kwargs['command_prefix'] = '!'
         if 'intents' not in kwargs:
             kwargs['intents'] = discord.Intents.all()
 
         super().__init__(
-            help_command=None,  # Disable default help command
+            help_command=None,
             **kwargs
         )
         self._setup_complete = False
+
+        # Add the command properly
+        self.add_command(commands.Command(
+            name='setbotchannel',
+            callback=self.setbotchannel,
+            help='Sets the bot channel'
+        ))
+
         try:
             with open("config.json", "r") as f:
                 global bot_config
@@ -33,8 +40,23 @@ class Client(commands.Bot):
         except:
             pass
 
+    async def setbotchannel(self, ctx):
+        """Sets the bot's channel for all communications"""
+        bot_config["guild_id"] = ctx.guild.id
+        bot_config["channel_id"] = ctx.channel.id
+
+        with open("config.json", "w") as f:
+            json.dump(bot_config, f)
+
+        await ctx.send(f"✅ Bot channel set to {ctx.channel.mention}")
+        setup_event.set()
+        await self.sync_commands_to_guild()
+
     async def setup_hook(self):
-        await self.add_cog(SlashCommands(self))  # Load de Cog
+        # Add the command before loading cogs
+        self.add_command(self.setbotchannel)
+        await self.add_cog(SlashCommands(self))
+
         if "guild_id" in bot_config:
             guild = discord.Object(id=bot_config["guild_id"])
             await self.tree.sync(guild=guild)
@@ -47,11 +69,12 @@ class Client(commands.Bot):
         await self.tree.sync(guild=guild)
         logHandler.log(f"Synced commands to guild: {guild.id}", "log")
 
-
     async def on_ready(self):
         if not self._setup_complete and not os.getenv("setupDone"):
             self._setup_complete = True
             logHandler.log(f"Logged on as {self.user}!", "log")
+
+            # Explicitly add the command
 
             logHandler.log("Prefix command registered. Use !setbotchannel in your server.", "log")
             logHandler.log("Please use !setbotchannel in your server to configure the bot.", "log")
@@ -73,7 +96,6 @@ class Client(commands.Bot):
 
             logHandler.log(f"Logged on as {self.user}!", "log")
             self.hourly_price_check.start()
-
 
     @tasks.loop(hours=12)
     async def hourly_price_check(self):
@@ -121,7 +143,6 @@ if __name__ == "__main__":
     try:
         discordBotKey = os.getenv("discordBotToken")
         if discordBotKey:
-            # Create client without duplicate prefix
             client = Client(intents=discord.Intents.all())
             client.run(discordBotKey)
         else:
