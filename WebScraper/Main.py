@@ -12,6 +12,8 @@ load_dotenv()
 
 try:
     discordBotKey = os.getenv("discordBotToken")
+    guild_ID = os.getenv("guildID")
+    channelID = os.getenv("channelID")
 except:
     print(f"Error: {Exception}")
 
@@ -21,7 +23,7 @@ class Client(commands.Bot):
         print(f"loggen on as {self.user}!")
         self.hourly_price_check.start()
         try:
-            guild = discord.Object(id=1371213848518070282)
+            guild = discord.Object(id=GUILD_ID)
             synced = await self.tree.sync(guild=guild)
             print(f"Synced {len(synced)} commands to guild: {guild.id}")
         except:
@@ -30,7 +32,7 @@ class Client(commands.Bot):
     @tasks.loop(hours=12)
     async def hourly_price_check(self):
         # Get the channel where you want to send messages
-        channel = self.get_channel(1371577580611960933)  # Replace with actual channel ID
+        channel = self.get_channel(channelID)
 
         if channel is None:
             print("Channel not found!")
