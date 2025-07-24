@@ -10,6 +10,8 @@ import LogHandler as lh
 import time
 import validators
 
+checkinInterval = 12
+scanInterval= 1
 DEBUG = False  # Set to True to enable debug mode, which will not write prices to the json file
 time.sleep(1)
 if DEBUG:
@@ -43,8 +45,18 @@ class Client(commands.Bot):
             print(f"Could not sync commands to guild with guild id {guild.id}")
         if DEBUG:
             await channel.send("DEBUG mode enabled")
+    
+    @tasks.loop(hours=checkinInterval)
+    async def hourly_checkin(self):
+        channel = self.get_channel(channelID)
+        if channel is None:
+            print("Channel not found!")
+            return
+        lh.log("Starting checkin", "log")
+        await channel.send(f"@Pricewatch is still running! Last check was at {time.strftime('%H:%M:%S', time.localtime())}")
+        lh.log_done
 
-    @tasks.loop(hours=12)
+    @tasks.loop(hours=scanInterval)
     async def hourly_price_check(self):
    
         channel = self.get_channel(channelID)
@@ -66,8 +78,7 @@ class Client(commands.Bot):
                     message += f"Name: {price['name']} OLD price: {price['Old price']} --> NEW price {price['New price']}\n"
 
             await channel.send(message)
-        else:
-            await channel.send("Check in. Prices have not changed. Use /showcurrenttracks for a list of currently tracked items")
+
 
     @hourly_price_check.before_loop
     async def before_hourly_check(self):
@@ -142,7 +153,7 @@ async def showCurrentTracks(interaction: discord.Interaction):
     await interaction.response.send_message(message, suppress_embeds=True)
     lh.log_done
 
-@client.tree.command(name="addtracker", description="Return list of all current trackers and their URL's", guild=GuildObject)
+@client.tree.command(name="addtracker", description="Adds a new tracker to the list", guild=GuildObject)
 async def addtracker(interaction: discord.Interaction, name: str, url: str, css_selector: str):
     await interaction.response.defer()
     lh.log(f"{interaction.user.name}#{interaction.user.discriminator} ran the addtracker command.", "log")
@@ -167,6 +178,20 @@ async def removeTracker(interaction: discord.Interaction, id: int):
     except Exception as e:
         lh.log(f"Error removing tracker: {str(e)}", "error")
         await interaction.followup.send("❌ An error occurred while trying to remove the tracker.", suppress_embeds=True)
-    
+
+@client.tree.command(name="setcheckininterval", description="Sets the interval at which the bot lets you know its still running. (Hours)", guild=GuildObject)
+async def setCheckinInterval(interaction: discord.Interaction, intervalInHours: int):
+    await interaction.response.defer()
+    checkinInterval = intervalInHours
+    lh.log(f"{interaction.user.name}#{interaction.user.discriminator} set the checkin interval to {checkinInterval} hours.", "log")
+    await interaction.followup.send(f"✅ Checkin interval has been set to {checkinInterval} hours.")
+
+@client.tree.command(name="setscaninterval", description="Sets the interval at which the bot scans the prices to check for changes. (Hours)", guild=GuildObject)
+async def setScanInterval(interaction: discord.Interaction, intervalInHours: int):
+    await interaction.response.defer()
+    scanInterval = intervalInHours
+    lh.log(f"{interaction.user.name}#{interaction.user.discriminator} set the scan interval to {scanInterval} hours.", "log")
+    await interaction.followup.send(f"✅ Scan interval has been set to {scanInterval} hours.")
+        
 
 client.run(discordBotKey)
