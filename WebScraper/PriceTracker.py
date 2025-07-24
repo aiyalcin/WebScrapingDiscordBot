@@ -2,10 +2,10 @@ import JsonHandler
 import Scraper
 
 
-def CheckPrices():
+def CheckPrices(DEBUG):
     
     json_objects = JsonHandler.getAllJsonData()
-    price_objects = Scraper.getAllPrices()
+    price_objects = Scraper.getAllPrices(DEBUG)
     changed_prices = []
 
     for oldObject in json_objects:
@@ -16,7 +16,7 @@ def CheckPrices():
 
             if newObject['name'] == oldObject['name']:
 
-                print(f"New value: {newObject['price']}, OLD value: {price_old}")
+                print(f"New value: {newObject['price']} OLD value: {price_old}")
 
                 if price_old != newObject['price']:
 
