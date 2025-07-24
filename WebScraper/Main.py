@@ -12,7 +12,7 @@ load_dotenv()
 
 try:
     discordBotKey = os.getenv("discordBotToken")
-    guild_ID = os.getenv("guildID")
+    guildID = os.getenv("guildID")
     channelID = os.getenv("channelID")
 except:
     print(f"Error: {Exception}")
@@ -23,7 +23,7 @@ class Client(commands.Bot):
         print(f"loggen on as {self.user}!")
         self.hourly_price_check.start()
         try:
-            guild = discord.Object(id=GUILD_ID)
+            guild = discord.Object(id=guildID)
             synced = await self.tree.sync(guild=guild)
             print(f"Synced {len(synced)} commands to guild: {guild.id}")
         except:
@@ -50,7 +50,7 @@ class Client(commands.Bot):
 
     @hourly_price_check.before_loop
     async def before_hourly_check(self):
-        await self.wait_until_ready()  # Wait until the bot is logged in
+        await self.wait_until_ready()
 
 
 class TrackedWebsite:
@@ -62,7 +62,7 @@ class TrackedWebsite:
 
 intents = discord.Intents.default()
 intents.message_content = True
-GUILD_ID = discord.Object(id=1371213848518070282)
+GuildObject = discord.Object(id=guildID)
 client = Client(command_prefix="/", intents=intents)
 
 
@@ -72,7 +72,7 @@ def isValidUrl(URL):
     return validators.url(URL) and URL.startswith(("http://", "https://"))
 
 
-@client.tree.command(name="pricetrack", description="Return list of tracked prices", guild=GUILD_ID)
+@client.tree.command(name="pricetrack", description="Return list of tracked prices", guild=GuildObject)
 async def pricetrack(interaction: discord.Interaction):
     try:
         # Immediately acknowledge the interaction
@@ -98,7 +98,7 @@ async def pricetrack(interaction: discord.Interaction):
         await interaction.followup.send("An error occurred while processing your request.")
 
 
-@client.tree.command(name="showcurrenttracks", description="Return list of all current trackers and their URL's", guild=GUILD_ID)
+@client.tree.command(name="showcurrenttracks", description="Return list of all current trackers and their URL's", guild=GuildObject)
 async def showcurrenttracks(interaction: discord.Interaction):
     LogHandler.log_handler("Loading json data", "log")
     loaded_data = JsonHandler.getAllJsonData()
@@ -113,7 +113,7 @@ async def showcurrenttracks(interaction: discord.Interaction):
     LogHandler.log_handler("Sending message - DONE", "log")
 
 
-@client.tree.command(name="addtracker", description="Add a price tracker by supplying a site URL", guild=GUILD_ID)
+@client.tree.command(name="addtracker", description="Add a price tracker by supplying a site URL", guild=GuildObject)
 async def addtracker(interaction: discord.Interaction, addtracker:str):
     if isValidUrl(addtracker):
         Scraper.addTracker(addtracker)
