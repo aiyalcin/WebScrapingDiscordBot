@@ -38,11 +38,12 @@ class Client(commands.Bot):
             self.hourly_price_check.start()
         
         try:
+            lh.log("Synching guild commands", "log")
             guild = discord.Object(id=guildID)
             synced = await self.tree.sync(guild=guild)
             print(f"Synced {len(synced)} commands to guild: {guild.id}")
-        except:
-            print(f"Could not sync commands to guild with guild id {guild.id}")
+        except Exception as e:
+            print(e)
         if DEBUG:
             await channel.send("DEBUG mode enabled")
     
@@ -180,16 +181,16 @@ async def removeTracker(interaction: discord.Interaction, id: int):
         await interaction.followup.send("❌ An error occurred while trying to remove the tracker.", suppress_embeds=True)
 
 @client.tree.command(name="setcheckininterval", description="Sets the interval at which the bot lets you know its still running. (Hours)", guild=GuildObject)
-async def setCheckinInterval(interaction: discord.Interaction, intervalInHours: int):
+async def setCheckinInterval(interaction: discord.Interaction, interval_in_hours: int):
     await interaction.response.defer()
-    checkinInterval = intervalInHours
+    checkinInterval = interval_in_hours
     lh.log(f"{interaction.user.name}#{interaction.user.discriminator} set the checkin interval to {checkinInterval} hours.", "log")
     await interaction.followup.send(f"✅ Checkin interval has been set to {checkinInterval} hours.")
 
 @client.tree.command(name="setscaninterval", description="Sets the interval at which the bot scans the prices to check for changes. (Hours)", guild=GuildObject)
-async def setScanInterval(interaction: discord.Interaction, intervalInHours: int):
+async def setScanInterval(interaction: discord.Interaction, interval_in_hours: int):
     await interaction.response.defer()
-    scanInterval = intervalInHours
+    scanInterval = interval_in_hours
     lh.log(f"{interaction.user.name}#{interaction.user.discriminator} set the scan interval to {scanInterval} hours.", "log")
     await interaction.followup.send(f"✅ Scan interval has been set to {scanInterval} hours.")
         
