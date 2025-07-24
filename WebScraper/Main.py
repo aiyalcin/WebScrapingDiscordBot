@@ -49,7 +49,10 @@ class Client(commands.Bot):
             message = "@Pricewatch prices have changed!\nChanged prices are:\n"
 
             for price in changed_prices:
-                message += f"Name: {price['name']} OLD price: {price['Old price']} --> NEW price {price['New price']}\n"
+                if price == None:
+                    message += "Price could not be retrieved for one of the items. Item might be sold out.\n"
+                else:
+                    message += f"Name: {price['name']} OLD price: {price['Old price']} --> NEW price {price['New price']}\n"
 
             await channel.send(message)
         else:
@@ -79,8 +82,12 @@ def isValidUrl(URL):
     return validators.url(URL) and URL.startswith(("http://", "https://"))
 
 
-@client.tree.command(name="pricetrack", description="Return list of tracked prices", guild=GuildObject)
-async def pricetrack(interaction: discord.Interaction):
+@client.tree.command(name="priceTrack", description="Return list of tracked prices", guild=GuildObject)
+async def priceTrack(interaction: discord.Interaction):
+
+    lh.log(f"{interaction.user.name}#{interaction.user.discriminator} ran the priceTrack command.", "log")
+    lh.log("Starting priceTrack command.", "log")
+
     try:
         await interaction.response.defer()
 
@@ -103,9 +110,13 @@ async def pricetrack(interaction: discord.Interaction):
         await interaction.followup.send("An error occurred while processing your request.")
 
 
-@client.tree.command(name="showcurrenttracks", description="Return list of all current trackers and their URL's", guild=GuildObject)
-async def showcurrenttracks(interaction: discord.Interaction):
+@client.tree.command(name="showCurrentTracks", description="Return list of all current trackers and their URL's", guild=GuildObject)
+async def showCurrentTracks(interaction: discord.Interaction):
     
+    lh.log(f"{interaction.user.name}#{interaction.user.discriminator} ran the showcurrenttracks command.", "log")
+    lh.log("Starting showcurrenttracks command.", "log")
+    
+
     lh.log("Loading json data", "log")
     loaded_data = JsonHandler.getAllJsonData()
     lh.log_done
@@ -120,15 +131,33 @@ async def showcurrenttracks(interaction: discord.Interaction):
     await interaction.response.send_message(message)
     lh.log_done
 
+@client.tree.command(name="=addTracker", description="Return list of all current trackers and their URL's", guild=GuildObject)
+async def addtracker(interaction: discord.Interaction, name: str, url: str, css_selector: str):
+    
+    lh.log(f"{interaction.user.name}#{interaction.user.discriminator} ran the addtracker command.", "log")
+    lh.log("Starting addtracker command.", "log")
 
-@client.tree.command(name="addtracker", description="Add a price tracker by supplying a site URL", guild=GuildObject)
-async def addtracker(interaction: discord.Interaction, addtracker:str):
-    
-    if isValidUrl(addtracker):
-        Scraper.addTracker(addtracker)
-        await interaction.response.send_message(f"✅ Now tracking: {addtracker}")
-    
+    if isValidUrl(url):
+        new_tracker = {"name": name, "url": url, "selector": css_selector, "currentPrice": 0}
+        JsonHandler.addTracker(new_tracker)
+
+        await interaction.response.send_message(f"✅ Now tracking: {name}")
+
     else:
         await interaction.response.send_message("❌ Invalid url!")
+
+@client.tree.command(name="=removeTracker", description="Deletes a tracker by it's id", guild=GuildObject)
+async def removeTracker(interaction: discord.Interaction, id: int):
+    
+    lh.log(f"{interaction.user.name}#{interaction.user.discriminator} ran the removeTracker command.", "log")
+    lh.log("Starting removeTracker command.", "log")
+    try:
+        JsonHandler.removeTracker(id)
+        await interaction.response.send_message(f"✅ Tracker with ID {id} has been removed.")
+    except Exception as e:
+        lh.log(f"Error removing tracker: {str(e)}", "error")
+        await interaction.response.send_message("❌ An error occurred while trying to remove the tracker.")
+
+    
 
 client.run(discordBotKey)

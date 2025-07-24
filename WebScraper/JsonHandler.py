@@ -42,3 +42,17 @@ def update_site_price(site_id, new_price):
 
     except Exception as e:
         print(f"Error updating price in JSON file: {e}")
+
+def removeTracker(id):
+    try:
+        with open(json_path, 'r') as file:
+            data = json.load(file)
+
+        # Filter out the site with the specified ID
+        
+        data['sites'] = [site for site in data['sites'] if site['id'] != id]
+        # Write the updated data back to the file
+        with open(json_path, 'w') as file:
+            json.dump(data, file, indent=2)
+    except Exception as e:
+        print(f"Error removing tracker: {e}")
