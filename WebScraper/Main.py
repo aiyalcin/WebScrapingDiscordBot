@@ -3,149 +3,120 @@ from discord.ext import commands
 import PriceTracker
 from dotenv import load_dotenv
 import os
+import validators
+import Scraper
 from discord.ext import tasks
-import LogHandler as logHandler
-import asyncio
-import json
-from SlashCommands import SlashCommands
-setup_event = asyncio.Event()
-bot_config = {}
+import JsonHandler
+import LogHandler
 load_dotenv()
+
+try:
+    discordBotKey = os.getenv("discordBotToken")
+except:
+    print(f"Error: {Exception}")
 
 
 class Client(commands.Bot):
-    def __init__(self, *args, **kwargs):
-        if 'command_prefix' not in kwargs:
-            kwargs['command_prefix'] = '!'
-        if 'intents' not in kwargs:
-            kwargs['intents'] = discord.Intents.all()
-
-        super().__init__(
-            help_command=None,
-            **kwargs
-        )
-        self._setup_complete = False
-
-        # Add the command properly
-        self.add_command(commands.Command(
-            name='setbotchannel',
-            callback=self.setbotchannel,
-            help='Sets the bot channel'
-        ))
-
-        try:
-            with open("config.json", "r") as f:
-                global bot_config
-                bot_config = json.load(f)
-        except:
-            pass
-
-    async def setbotchannel(self, ctx):
-        """Sets the bot's channel for all communications"""
-        bot_config["guild_id"] = ctx.guild.id
-        bot_config["channel_id"] = ctx.channel.id
-
-        with open("config.json", "w") as f:
-            json.dump(bot_config, f)
-
-        await ctx.send(f"✅ Bot channel set to {ctx.channel.mention}")
-        setup_event.set()
-        await self.sync_commands_to_guild()
-
-    async def setup_hook(self):
-        # Add the command before loading cogs
-        self.add_command(self.setbotchannel)
-        await self.add_cog(SlashCommands(self))
-
-        if "guild_id" in bot_config:
-            guild = discord.Object(id=bot_config["guild_id"])
-            await self.tree.sync(guild=guild)
-            logHandler.log(f"Synced commands to guild: {guild.id}", "log")
-
-    async def sync_commands_to_guild(self):
-        """Helper method to sync commands to the configured guild"""
-        guild = discord.Object(id=bot_config["guild_id"])
-        self.tree.copy_global_to(guild=guild)
-        await self.tree.sync(guild=guild)
-        logHandler.log(f"Synced commands to guild: {guild.id}", "log")
-
     async def on_ready(self):
-        if not self._setup_complete and not os.getenv("setupDone"):
-            self._setup_complete = True
-            logHandler.log(f"Logged on as {self.user}!", "log")
-
-            # Explicitly add the command
-
-            logHandler.log("Prefix command registered. Use !setbotchannel in your server.", "log")
-            logHandler.log("Please use !setbotchannel in your server to configure the bot.", "log")
-        else:
-            # Normal operation
-            if "guild_id" in bot_config:
-                target_guild = self.get_guild(bot_config["guild_id"])
-                if not target_guild:
-                    logHandler.log("Error: Bot is not in the configured guild!", "error")
-                    return
-
-                # Sync commands to specific guild
-                try:
-                    await self.sync_commands_to_guild()
-                except Exception as e:
-                    logHandler.log(f"Error syncing guild commands: {str(e)}", "error")
-            else:
-                logHandler.log("No guild configured yet!", "warning")
-
-            logHandler.log(f"Logged on as {self.user}!", "log")
-            self.hourly_price_check.start()
+        print(f"loggen on as {self.user}!")
+        self.hourly_price_check.start()
+        try:
+            guild = discord.Object(id=1371213848518070282)
+            synced = await self.tree.sync(guild=guild)
+            print(f"Synced {len(synced)} commands to guild: {guild.id}")
+        except:
+            print(f"Could not sync commands to guild with guild id {guild.id}")
 
     @tasks.loop(hours=12)
     async def hourly_price_check(self):
-        if "channel_id" not in bot_config:
-            return
+        # Get the channel where you want to send messages
+        channel = self.get_channel(1371577580611960933)  # Replace with actual channel ID
 
-        channel = self.get_channel(bot_config["channel_id"])
         if channel is None:
+            print("Channel not found!")
             return
 
         changed_prices = PriceTracker.CheckPrices()
+
         if changed_prices:
             message = "@Pricewatch prices have changed!\nChanged prices are:\n"
             for price in changed_prices:
                 message += f"Name: {price['name']} OLD price: {price['Old price']} --> NEW price {price['New price']}\n"
             await channel.send(message)
         else:
-            await channel.send("Check in. Prices have not changed.")
+            await channel.send("Check in. Prices have not changed. Use /showcurrenttracks for a list of currently tracked items")
 
     @hourly_price_check.before_loop
     async def before_hourly_check(self):
-        await self.wait_until_ready()
+        await self.wait_until_ready()  # Wait until the bot is logged in
 
 
-async def setup():
-    logHandler.log("Bot setup started.", "log")
-    token = input("Enter bot token: ").strip('"')
+class TrackedWebsite:
+    def __init__(self, Id, Url, CurrentPrice):
+        self.id = Id
+        self.url = Url
+        self.currentPrice = CurrentPrice
 
-    with open(".env", "w") as f:
-        f.write(f"discordBotToken={token}\n")
-    os.environ["setupDone"] = "true"
 
-    logHandler.log("Waiting for !setbotchannel command...", "log")
-    # Create client without duplicate prefix
-    client = Client(intents=discord.Intents.all())
+intents = discord.Intents.default()
+intents.message_content = True
+GUILD_ID = discord.Object(id=1371213848518070282)
+client = Client(command_prefix="/", intents=intents)
 
+
+
+
+def isValidUrl(URL):
+    return validators.url(URL) and URL.startswith(("http://", "https://"))
+
+
+@client.tree.command(name="pricetrack", description="Return list of tracked prices", guild=GUILD_ID)
+async def pricetrack(interaction: discord.Interaction):
     try:
-        await client.start(token)
-    except Exception as e:
-        logHandler.log(f"Failed to start bot: {str(e)}", "error")
-    finally:
-        await client.close()
+        # Immediately acknowledge the interaction
+        await interaction.response.defer()
 
-if __name__ == "__main__":
-    try:
-        discordBotKey = os.getenv("discordBotToken")
-        if discordBotKey:
-            client = Client(intents=discord.Intents.all())
-            client.run(discordBotKey)
-        else:
-            asyncio.run(setup())
+        LogHandler.log_handler("Scraping prices", "log")
+        prices = Scraper.getAllPrices()
+        LogHandler.log_handler("Scraping prices - DONE", "log")
+
+        message = ""
+        LogHandler.log_handler("Creating message", "log")
+        for price_object in prices:
+            message += f"\nName: {price_object['name']} - Prices: {price_object['price']}"
+        LogHandler.log_handler("Creating message - DONE", "log")
+
+        LogHandler.log_handler("Sending message", "log")
+        # Use followup.send instead of interaction.response.send_message
+        await interaction.followup.send(message)
+        LogHandler.log_handler("Sending message - DONE", "log")
+
     except Exception as e:
-        logHandler.log(f"Fatal error: {str(e)}", "error")
+        LogHandler.log_handler(f"Error in pricetrack: {str(e)}", "error")
+        await interaction.followup.send("An error occurred while processing your request.")
+
+
+@client.tree.command(name="showcurrenttracks", description="Return list of all current trackers and their URL's", guild=GUILD_ID)
+async def showcurrenttracks(interaction: discord.Interaction):
+    LogHandler.log_handler("Loading json data", "log")
+    loaded_data = JsonHandler.getAllJsonData()
+    LogHandler.log_handler("Loading json data - DONE", "log")
+    message = ""
+    LogHandler.log_handler("Creating message", "log")
+    for data in loaded_data:
+        message += f"\nID: {data['id']} Name: {data['name']} - Website URL: {data['url']}"
+    LogHandler.log_handler("Creating message - DONE", "log")
+    LogHandler.log_handler("Sending message", "log")
+    await interaction.response.send_message(message)
+    LogHandler.log_handler("Sending message - DONE", "log")
+
+
+@client.tree.command(name="addtracker", description="Add a price tracker by supplying a site URL", guild=GUILD_ID)
+async def addtracker(interaction: discord.Interaction, addtracker:str):
+    if isValidUrl(addtracker):
+        Scraper.addTracker(addtracker)
+        await interaction.response.send_message(f"✅ Now tracking: {addtracker}")
+    else:
+        await interaction.response.send_message("❌ Invalid url!")
+
+client.run(discordBotKey)

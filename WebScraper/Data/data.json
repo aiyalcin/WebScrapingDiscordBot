@@ -9,31 +9,38 @@
     },
     {
       "id": 2,
-      "name": "Klimgordel",
-      "url": "https://www.bergfreunde.nl/mammut-4-slide-harness-klimgordel/?aid=7f36574ae3600eb61cb5636add93380c&pid=10004&bfgb=false&wt_cc1&gad_campaignid=17428201133",
+      "name": "Crampons",
+      "url": "https://www.bergfreunde.nl/petzl-irvis-stijgijzers/?aid=c46988aa17c1ffd932157cf82b4b2967&pid=10004&bfgb=false&wt_cc1&gad_campaignid=17428201133",
       "selector": ".js-price > span:nth-child(2) > span:nth-child(1)",
-      "currentPrice": "53,96"
-    },
-    {
-      "id": 3,
-      "name": "ICE Axe",
-      "url": "https://www.snowcountry.nl/black-diamond-venom-adze-9741.html?artikel_maat=65040&gad_campaignid=17430740046",
-      "selector": "#product-price-29837 > span:nth-child(1)",
       "currentPrice": "125,96"
     },
     {
-      "id": 4,
-      "name": "Scrampons",
-      "url": "https://www.bergfreunde.nl/petzl-irvis-stijgijzers/?aid=c46988aa17c1ffd932157cf82b4b2967&pid=10004&bfgb=false&wt_cc1&gad_campaignid=17428201133",
-      "selector": ".js-price > span:nth-child(2) > span:nth-child(1)",
-      "currentPrice": "118,96"
+      "id": 3,
+      "name": "Rugged powerbank",
+      "url": "https://www.bever.nl/p/xtorm-rugged-powerbank-20-000-B3GA390059.html?colour=1243",
+      "selector": "#body-wrapper > div.a-grid-container > div.product-detail.base-component-ssr.parbase.a-contents > div > div > div > div.as-t-pdp-layout__item.as-t-pdp-layout__item--interaction-block > div.grid-row.parent > div:nth-child(2) > div.as-m-group.as-m-group--gutter.as-m-group--align.as-m-group--valign > div.as-a-price.as-a-price--spacing-xs.as-m-product-price.as-m-product-price--size-default > div.as-a-price__value.as-a-price__value--sell > span > strong",
+      "currentPrice": "84,96"
     },
     {
-      "id": 5,
-      "name": "Powerbank",
+      "id": 4,
+      "name": "Powerbank solar",
       "url": "https://www.bever.nl/p/xtorm-rugged-solar-powerbank-10-000-B3GA390062.html?colour=4130",
       "selector": ".as-m-product-price > div:nth-child(1) > span:nth-child(1) > strong:nth-child(1)",
       "currentPrice": "99,95"
+    },
+    {
+      "id": 5,
+      "name": "Gasbrander",
+      "url": "https://www.bever.nl/p/jetboil-flash-1-0l-carbon-2-0-gasbrander-G4DB3A0089.html?colour=4246",
+      "selector": "#body-wrapper > div.a-grid-container > div.product-detail.base-component-ssr.parbase.a-contents > div > div > div > div.as-t-pdp-layout__item.as-t-pdp-layout__item--interaction-block > div.grid-row.parent > div:nth-child(2) > div > div > div > span > strong",
+      "currentPrice": "144,95"
+    },
+    {
+      "id": 6,
+      "name": "Black Diamond Classic Set 5-11 Nut",
+      "url": "https://www.bever.nl/p/black-diamond-classic-set-5-11-nut-SCAAD22013.html?colour=5806",
+      "selector": "#body-wrapper > div.a-grid-container > div.product-detail.base-component-ssr.parbase.a-contents > div > div > div > div.as-t-pdp-layout__item.as-t-pdp-layout__item--interaction-block > div.grid-row.parent > div:nth-child(2) > div > div > div > span > strong",
+      "currentPrice": "84,95"
     }
   ]
 }
