@@ -4,6 +4,7 @@ from colorama import Style
 from datetime import datetime
 init(autoreset=True)
 
+
 def get_current_time():
     current_time = datetime.now()
     c_hr = current_time.hour
@@ -25,13 +26,21 @@ def get_current_time():
     return time_formatted
 
 
-def log_handler(message, type_msg):
+def log(message, type_msg):
 
     if type_msg == "error":
         print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.RED}  [!]-{message}")
     elif type_msg == "warn":
         print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.YELLOW}  [i]-{message}")
+    elif type_msg == "success":
+        print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.LIGHTGREEN_EX}  [+]-{message}")
     elif type_msg == "log":
         print(f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.WHITE}  [-]-{message}")
+        global last_message
+        last_message = f"{Fore.LIGHTBLUE_EX}[{get_current_time()}]{Style.RESET_ALL}{Fore.WHITE}  [-]-{message}"
     else:
         print("[!]-MSG PRINT ERROR")
+
+
+def log_done():
+    print("\r" + last_message + " - DONE")
