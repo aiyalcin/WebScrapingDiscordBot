@@ -9,10 +9,12 @@ import JsonHandler
 import LogHandler as lh
 import time
 import validators
+import requests
+from bs4 import BeautifulSoup
 
 checkinInterval = 12
 scanInterval= 1
-DEBUG = False  # Set to True to enable debug mode, which will not write prices to the json file
+DEBUG = False  
 time.sleep(1)
 if DEBUG:
     lh.log("Debug mode is enabled. Prices will not be written to the json file.", "warn")
@@ -144,14 +146,15 @@ async def showCurrentTracks(interaction: discord.Interaction):
     loaded_data = JsonHandler.getAllJsonData()
     lh.log_done
 
-    message = ""
-    lh.log("Creating message", "log")
+    # Build the message content
+    message = "Current Trackers:\n"
     for data in loaded_data:
-        message += f"\nID: {data['id']} Name: {data['name']} - Website URL: {data['url']}"
-    lh.log_done
-
-    lh.log("Sending message", "log")
-    await interaction.response.send_message(message, suppress_embeds=True)
+        message += f"ID: {data['id']} | Name: {data['name']} | URL: {data['url']}\n"
+    # Convert message string into a file
+    from io import StringIO
+    file = discord.File(fp=StringIO(message), filename="current_trackers.txt")
+    lh.log("Sending message as file", "log")
+    await interaction.response.send_message(content="📄 Here is the list of current trackers:", file=file)
     lh.log_done
 
 @client.tree.command(name="addtracker", description="Adds a new tracker to the list", guild=GuildObject)
@@ -161,9 +164,21 @@ async def addtracker(interaction: discord.Interaction, name: str, url: str, css_
     lh.log("Starting addtracker command.", "log")
 
     if isValidUrl(url):
-        new_tracker = {"name": name, "url": url, "selector": css_selector, "currentPrice": "0"}
-        JsonHandler.addTracker(new_tracker) 
-        await interaction.followup.send(f"✅ Now tracking: {name}")
+        try:
+            html_text = requests.get(url, timeout=20).text  # Increased timeout
+            soup = BeautifulSoup(html_text, "lxml")
+            price_element = soup.select_one(css_selector)
+            js_required = price_element is None
+        except requests.exceptions.Timeout:
+            lh.log(f"Timeout checking JS requirement for {url}", "error")
+            js_required = True
+            await interaction.followup.send(f"⚠️ Timeout while checking {url}. Assuming JavaScript is required.")
+        except Exception as e:
+            lh.log(f"Error checking JS requirement: {e}", "error")
+            js_required = True
+        new_tracker = {"name": name, "url": url, "selector": css_selector, "currentPrice": "0", "js": js_required}
+        JsonHandler.addTracker(new_tracker)
+        await interaction.followup.send(f"✅ Now tracking: {name} (JavaScript required: {js_required})")
     else:
         await interaction.followup.send("❌ Invalid url!")
 
