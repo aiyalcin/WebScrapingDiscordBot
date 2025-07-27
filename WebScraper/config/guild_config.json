@@ -1,0 +1,12 @@
+{
+  "123456789012345678": {
+    "channel_id": 987654321098765432,
+    "checkin_interval": 12,
+    "scan_interval": 1
+  },
+  "906898998290427938": {
+    "channel_id": 1398982013285040140,
+    "checkin_interval": 24,
+    "scan_interval": 1
+  }
+}

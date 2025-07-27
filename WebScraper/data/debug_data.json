@@ -1,6 +1,6 @@
 {
   "global": {
-    "1371213848518070282": [
+    "123456789012345678": [
       {
         "id": 1,
         "name": "Backpack",
@@ -57,7 +57,7 @@
         "name": "Wide fit t-shirt ASOS",
         "url": "https://www.asos.com/nl/4505/4505-icon-oversized-t-shirt-van-sneldrogend-zwaar-katoen-in-zwart/prd/207632238#ctaref-more%20colours%20swatches&featureref1-more%20colours%20swatches",
         "selector": ".MwTOW",
-        "currentPrice": "22,98",
+        "currentPrice": "22,99",
         "id": 7,
         "js": true
       },

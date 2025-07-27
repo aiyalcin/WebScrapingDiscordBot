@@ -5,12 +5,15 @@ from selenium import webdriver
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.common.by import By
 import JsonHandler
-import PriceTracker
 import LogHandler as lh
+import platform
 
-GECKODRIVER_PATH = r"C:\Coding\Github\WebScrapingDiscordBot\WebScraper\bin\geckodriver-v0.36.0-win64\geckodriver.exe"
+if platform.system() == "Windows":
+    GECKODRIVER_PATH = r"C:\Coding\Github\WebScrapingDiscordBot\WebScraper\bin\geckodriver\geckodriver.exe"
+else:
+    GECKODRIVER_PATH = "/usr/bin/geckodriver"
 
-def extractPrice(object, DEBUG):
+def extractPrice(object, DEBUG, guild_id=None, username=None):
     lh.log(f"Now scraping ID: {object['id']}", "log")
     try:
         url = object['url']
@@ -42,10 +45,11 @@ def extractPrice(object, DEBUG):
             lh.log(f"Could not extract price from text: '{price_text}'", "error")
             return None
 
-        if not DEBUG:
-            JsonHandler.update_site_price(object['id'], clean_price)
-        else:
-            lh.log("Skipping write DEBUG is enabled", "warn")
+        # Update price in the correct place
+        if guild_id is not None:
+            JsonHandler.update_site_price(object['id'], clean_price, guild_id)
+        elif username is not None:
+            JsonHandler.update_user_tracker_price(username, object['id'], clean_price)
 
         return clean_price
     except Exception as e:
@@ -53,13 +57,19 @@ def extractPrice(object, DEBUG):
         return None
 
 
-def getAllPrices(DEBUG):
-    json_data = JsonHandler.getAllJsonData()
+def getAllPrices(DEBUG, private_tracks_enabled, username=None):
+    # Get tracker info only (not prices) from JSON
+    if private_tracks_enabled and username:
+        trackers = JsonHandler.getUserTrackers(username)
+    else:
+        trackers = JsonHandler.getAllJsonData(private_tracks_enabled)
     objects = []
-    for object in json_data:
-        name = object['name']
-        price = extractPrice(object, DEBUG)
-        new_object = {"name": name, "price": price}
+    for tracker in trackers:
+        ID = tracker['id']
+        name = tracker['name']
+        # Scrape the current price from the web
+        price = extractPrice(tracker, DEBUG)
+        new_object = {"id": ID, "name": name, "price": price}
         objects.append(new_object)
     return objects
 
