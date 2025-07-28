@@ -1,3 +1,5 @@
+# Main entry point for the Discord price tracking bot
+# Imports required libraries and modules
 import discord
 from discord.ext import commands
 import PriceTracker
@@ -18,89 +20,95 @@ import shutil
 import json
 import datetime
 
+#TODO remove private tracks enabled, messaging, automatic price finder algorithm
+
+
+# Default intervals and debug flags
+DEBUG = False
+
+# Path to the guild configuration file
 CONFIG_PATH = "config/guild_config.json"
 
+# Loads the guild configuration from JSON file
 def load_guild_config():
     if not os.path.exists(CONFIG_PATH):
         return {}
     with open(CONFIG_PATH, "r") as f:
         return json.load(f)
 
+# Saves the guild configuration to JSON file
 def save_guild_config(config):
     with open(CONFIG_PATH, "w") as f:
         json.dump(config, f, indent=2)
 
-# Helper to get config for a guild
+# Retrieves a specific setting for a guild
 def get_guild_setting(guild_id, key, default=None):
     config = load_guild_config()
     return config.get(str(guild_id), {}).get(key, default)
 
-def set_guild_setting(guild_id, key, value):
+# Sets a specific setting for a guild
+def set_guild_setting(guild_id, key, value, guild_name=None):
     config = load_guild_config()
     if str(guild_id) not in config:
         config[str(guild_id)] = {}
     config[str(guild_id)][key] = value
+    if guild_name:
+        config[str(guild_id)]["server_name"] = guild_name
     save_guild_config(config)
 
-# Interval settings for check-in and price scan tasks (in hours) these can be adjusted as needed through the slash commands
-checkinInterval = 12
-scanInterval= 1
-DEBUG = True  # Enable debug mode to prevent writing prices to the JSON file
-PRIVATE_TRACKS_ENABLED = True  # Set to True to enable per-user private tracking
-
+# Setup debug data file if in debug mode
 time.sleep(1)
 if DEBUG:
     lh.log("Debug mode is enabled. Prices will now be written to the debug json file.", "warn")
-    # Copy data.json to debug_data.json if not already present
     if not os.path.exists("Data/debug_data.json"):
         shutil.copyfile("Data/data.json", "Data/debug_data.json")
 else:
-    # Remove debug_data.json if it exists
     if os.path.exists("Data/debug_data.json"):
         os.remove("Data/debug_data.json")
 
-# Load environmentvariables from .env file
+# Load environment variables
 load_dotenv()
 
-# Retrieve Discord bot credentials only
+# Get Discord bot token from environment
 try:
     discordBotKey = os.getenv("discordBotToken")
 except Exception as e:
-    print(f"Error: {e}")
+    lh.log(f"Error: {e}", "error")
 
-
-# Custom Discord bot client with scheduled tasks
+# Custom Discord bot client class
 class Client(commands.Bot):
-    # Called when the bot is ready and connected to Discord
+    # Called when the bot is ready and online
     async def on_ready(self):
-        print(f"Logged in as {self.user}!")
+        lh.log(f"Logged in as {self.user}!", "success")
         lh.log("Bot is online.", "log")
         self.guild_config = load_guild_config()
-        # Sync commands globally
         try:
             lh.log("Synching global commands", "log")
             synced = await self.tree.sync()
-            print(f"Synced {len(synced)} commands globally.")
+            lh.log(f"Synced {len(synced)} commands globally.", "success")
+            for guild in self.guilds:
+                await self.tree.sync(guild=guild)
         except Exception as e:
-            print(e)
-        # Start scheduled tasks for each guild
+            lh.log(e, "error")
         for guild in self.guilds:
             await self.start_guild_tasks(guild)
+        # Start a single background task for private trackers
+        self.loop.create_task(self.private_trackers_task())
 
+    # Called when the bot joins a new guild
     async def on_guild_join(self, guild):
         guild_id = str(guild.id)
-        # Set default values for the new guild
-        set_guild_setting(guild_id, "channel_id", None)
+        set_guild_setting(guild_id, "channel_id", None, guild.name)
         set_guild_setting(guild_id, "checkin_interval", 12)
         set_guild_setting(guild_id, "scan_interval", 1)
         lh.log(f"Bot added to new guild: {guild_id}. Default config created.", "log")
-        # Sync commands for this guild
         try:
             await self.tree.sync(guild=guild)
             lh.log(f"Commands synced for guild {guild_id}.", "log")
         except Exception as e:
             lh.log(f"Error syncing commands for guild {guild_id}: {e}", "error")
 
+    # Called when the bot is removed from a guild
     async def on_guild_remove(self, guild):
         guild_id = str(guild.id)
         config = load_guild_config()
@@ -109,6 +117,7 @@ class Client(commands.Bot):
             save_guild_config(config)
             lh.log(f"Bot removed from guild: {guild_id}. Config deleted.", "log")
 
+    # Starts periodic tasks for a guild
     async def start_guild_tasks(self, guild):
         guild_id = str(guild.id)
         config = load_guild_config()
@@ -118,62 +127,27 @@ class Client(commands.Bot):
         if channel_id:
             channel = self.get_channel(channel_id)
             if channel:
-                # Run a global price check immediately when bot starts
-                lh.log(f"Initial price check for guild {guild_id}", "log")
-                changed_prices_global = PriceTracker.CheckPrices(DEBUG, False)
-                changed_prices_private = PriceTracker.CheckPrices(DEBUG, True)
-                pricewatch_role = discord.utils.get(channel.guild.roles, name="Pricewatch")
-                pricewatch_mention = pricewatch_role.mention if pricewatch_role else "@Pricewatch"
-                # Send global tracker changes to channel
-                if changed_prices_global:
-                    message = ""
-                    for price in changed_prices_global:
-                        if price is None:
-                            message += "Price could not be retrieved for one of the items. Item might be sold out.\n"
-                        else:
-                            if DEBUG:
-                                mention = "Pricewatch"
-                            else:
-                                mention = pricewatch_mention
-                            message += f"{mention} - Name: {price['name']} OLD price: {price['Old price']} --> NEW price {price['New price']}\n"
-                    await channel.send(message)
-                # Send private tracker changes as DMs
-                if changed_prices_private:
-                    for price in changed_prices_private:
-                        if price is None:
-                            continue
-                        username = price.get('user')
-                        if username:
-                            member = discord.utils.find(lambda m: m.name.lower() == username, guild.members)
-                            if member:
-                                dm_message = f"Your tracker '{price['name']}' changed price: OLD price: {price['Old price']} --> NEW price {price['New price']}"
-                                try:
-                                    await member.send(dm_message)
-                                except Exception as e:
-                                    lh.log(f"Failed to DM {username}: {e}", "error")
-                # Start tasks for this guild
                 self.loop.create_task(self.guild_checkin_task(guild, channel, checkin_interval))
                 self.loop.create_task(self.guild_price_check_task(guild, channel, scan_interval))
 
+    # Periodic check-in task for a guild
     async def guild_checkin_task(self, guild, channel, interval):
         while True:
             lh.log(f"Checkin for guild {guild.id}", "log")
             if not DEBUG:
-                # Use log channel if set, otherwise fallback to public channel
                 log_channel_id = get_guild_setting(str(guild.id), "log_channel_id")
                 log_channel = self.get_channel(log_channel_id) if log_channel_id else channel
                 await log_channel.send(f"@Pricewatch is still running! Last check was at {time.strftime('%H:%M:%S', time.localtime())}")
             next_run = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=interval)
             await discord.utils.sleep_until(next_run)
 
+    # Periodic price check task for a guild
     async def guild_price_check_task(self, guild, channel, interval):
         while True:
             lh.log(f"Price check for guild {guild.id}", "log")
-            changed_prices_global = PriceTracker.CheckPrices(DEBUG, False)
-            changed_prices_private = PriceTracker.CheckPrices(DEBUG, True)
+            changed_prices_global = PriceTracker.CheckGlobalTrackers(DEBUG, str(guild.id))
             pricewatch_role = discord.utils.get(channel.guild.roles, name="Pricewatch")
             pricewatch_mention = pricewatch_role.mention if pricewatch_role else "@Pricewatch"
-            # Send global tracker changes to channel
             if changed_prices_global:
                 message = ""
                 for price in changed_prices_global:
@@ -186,13 +160,23 @@ class Client(commands.Bot):
                             mention = pricewatch_mention
                         message += f"{mention} - Name: {price['name']} OLD price: {price['Old price']} --> NEW price {price['New price']}\n"
                 await channel.send(message)
-            # Send private tracker changes as DMs
+            next_run = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=interval)
+            await discord.utils.sleep_until(next_run)
+
+    # New: Single background task for private trackers
+    async def private_trackers_task(self):
+        interval = 1  # Default interval in hours, can be made configurable
+        while True:
+            lh.log("Private tracker scan (single task for all guilds)", "log")
+            changed_prices_private = PriceTracker.CheckPrivateTrackers(DEBUG)
             if changed_prices_private:
+                # Send DM to users for changed private trackers
                 for price in changed_prices_private:
                     if price is None:
                         continue
                     username = price.get('user')
-                    if username:
+                    # Find member in all guilds
+                    for guild in self.guilds:
                         member = discord.utils.find(lambda m: m.name.lower() == username, guild.members)
                         if member:
                             dm_message = f"Your tracker '{price['name']}' changed price: OLD price: {price['Old price']} --> NEW price {price['New price']}"
@@ -208,14 +192,14 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = Client(command_prefix="/", intents=intents)
 
-# Simple class to represent a tracked website (not used in main logic)
+# Represents a tracked website for price monitoring
 class TrackedWebsite:
     def __init__(self, Id, Url, CurrentPrice):
         self.id = Id
         self.url = Url
         self.currentPrice = CurrentPrice
 
-# Helper function to validate URLs
+# Validates a URL for tracking (checks format and public IP)
 def isValidUrl(URL):
     if not (validators.url(URL) and URL.startswith(("http://", "https://"))):
         return False
@@ -224,13 +208,11 @@ def isValidUrl(URL):
         hostname = parsed.hostname
         if hostname is None:
             return False
-        # Try to resolve the hostname to an IP address
         ip = None
         try:
             ip = socket.gethostbyname(hostname)
         except Exception:
             return False
-        # Check if the IP is private or loopback
         ip_obj = ipaddress.ip_address(ip)
         if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_multicast:
             return False
@@ -238,7 +220,7 @@ def isValidUrl(URL):
         return False
     return True
 
-# Helper function to get user display string
+# Returns the display name for a Discord user
 def get_user_display(user):
     username = user.name
     discriminator = getattr(user, 'discriminator', None)
@@ -247,7 +229,7 @@ def get_user_display(user):
     else:
         return username
 
-# Slash command: show current tracked prices
+# Command: Show all global tracked prices
 @client.tree.command(name="pricetrackglobal", description="Return list of tracked prices for all global trackers")
 async def priceTrackGlobal(interaction: discord.Interaction):
     lh.log(f"{get_user_display(interaction.user)} ran the pricetrackglobal command.", "log")
@@ -278,7 +260,7 @@ async def priceTrackGlobal(interaction: discord.Interaction):
         lh.log(f"Error in pricetrackglobal: {str(e)}", "error")
         await interaction.followup.send("An error occurred while processing your request.")
 
-# Slash command: show all current trackers as a .txt file
+# Command: Show all current trackers (global and user)
 @client.tree.command(name="showcurrenttracks", description="Return list of all current trackers and their URL's")
 async def showCurrentTracks(interaction: discord.Interaction):
     lh.log(f"{get_user_display(interaction.user)} ran the showcurrenttracks command.", "log")
@@ -287,10 +269,8 @@ async def showCurrentTracks(interaction: discord.Interaction):
     await interaction.response.send_message("Processing current trackers. One moment...")
     msg = await interaction.original_response()
     guild_id = str(interaction.guild.id)
-    # Get all global and user trackers
-    global_tracks = JsonHandler.getAllJsonData(False, guild_id)
-    # Get all user trackers as a flat list
-    user_tracks = JsonHandler.getAllJsonData(True)
+    global_tracks = JsonHandler.getAllJsonData(guild_id)
+    user_tracks = JsonHandler.getAllJsonData()
     message = "Global Trackers:\n"
     for data in global_tracks:
         message += f"ID: {data['id']} | Name: {data['name']} | URL: {data['url']}\n"
@@ -308,7 +288,7 @@ async def showCurrentTracks(interaction: discord.Interaction):
         await msg.edit(content=message)
     lh.log_done
 
-# Slash command: show all your tracked items
+# Command: Show all tracks for the current user
 @client.tree.command(name="showmytracks", description="Show all your tracked items")
 async def showMyTracks(interaction: discord.Interaction):
     lh.log(f"{get_user_display(interaction.user)} ran the showMytracks command.", "log")
@@ -330,18 +310,21 @@ async def showMyTracks(interaction: discord.Interaction):
     else:
         await msg.edit(content=message)
 
-# Slash command: add a new global tracker
+# Command: Add a new global tracker
 @client.tree.command(name="addglobaltracker", description="Adds a new global tracker to the list")
 async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str, css_selector: str):
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ Only administrators can add global trackers.")
+        return
     lh.log(f"{get_user_display(interaction.user)} ran the addglobaltracker command.", "log")
     lh.log("Starting addglobaltracker command.", "log")
-    # Send initial message
     await interaction.response.send_message("Checking JavaScript requirements. One moment...")
     msg = await interaction.original_response()
     guild_id = str(interaction.guild.id)
     if isValidUrl(url):
+        js_required = False
         try:
-            html_text = requests.get(url, timeout=10).text
+            html_text = requests.get(url, timeout=5).text
             soup = BeautifulSoup(html_text, "lxml")
             price_element = soup.select_one(css_selector)
             js_required = price_element is None
@@ -349,26 +332,26 @@ async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str
             lh.log(f"Timeout checking JS requirement for {url}", "error")
             js_required = True
             await msg.edit(content=f"⚠️ Timeout while checking {url}. Assuming JavaScript is required.")
-            return
         except Exception as e:
             lh.log(f"Error checking JS requirement: {e}", "error")
             js_required = True
+        # Always add the tracker, even if there was a timeout or error
         new_tracker = {"name": name, "url": url, "selector": css_selector, "currentPrice": "0", "js": js_required}
         JsonHandler.addTracker(new_tracker, guild_id)
         await msg.edit(content=f"✅ Now tracking globally: {name} (JavaScript required: {js_required})")
     else:
         await msg.edit(content="❌ Invalid url!")
 
-# Slash command: add a new private tracker
+# Command: Add a new private tracker for the user
 @client.tree.command(name="addprivatetracker", description="Adds a new private tracker to your list")
 async def addPrivateTracker(interaction: discord.Interaction, name: str, url: str, css_selector: str):
     lh.log(f"{get_user_display(interaction.user)} ran the addprivatetracker command.", "log")
     lh.log("Starting addprivatetracker command.", "log")
     username = interaction.user.name.lower()
-    # Send initial message
     await interaction.response.send_message("Checking JavaScript requirements. One moment...")
     msg = await interaction.original_response()
     if isValidUrl(url):
+        js_required = False
         try:
             html_text = requests.get(url, timeout=10).text
             soup = BeautifulSoup(html_text, "lxml")
@@ -378,42 +361,44 @@ async def addPrivateTracker(interaction: discord.Interaction, name: str, url: st
             lh.log(f"Timeout checking JS requirement for {url}", "error")
             js_required = True
             await msg.edit(content=f"⚠️ Timeout while checking {url}. Assuming JavaScript is required.")
-            return
         except Exception as e:
             lh.log(f"Error checking JS requirement: {e}", "error")
             js_required = True
+        # Always add the tracker, even if there was a timeout or error
         new_tracker = {"name": name, "url": url, "selector": css_selector, "currentPrice": "0", "js": js_required}
         JsonHandler.addUserTracker(username, new_tracker)
         await msg.edit(content=f"✅ Now tracking for you: {name} (JavaScript required: {js_required})")
     else:
         await msg.edit(content="❌ Invalid url!")
 
-# Slash command: remove a tracker by its ID
+# Command: Remove a tracker by its ID (global or private)
 @client.tree.command(name="removetracker", description="Deletes a tracker by its id (global or private)")
 async def removeTracker(interaction: discord.Interaction, id: int):
     await interaction.response.defer()
     lh.log(f"{get_user_display(interaction.user)} ran the removeTracker command.", "log")
     lh.log("Starting removeTracker command.", "log")
+    lh.log("Getting data from data.json", "log")
     username = interaction.user.name.lower()
     guild_id = str(interaction.guild.id)
-    # Get all global trackers
-    global_trackers = JsonHandler.getAllJsonData(False, guild_id)
-    # Get user trackers as a dict
-    import json
+    global_trackers = JsonHandler.getAllJsonData(guild_id)
     user_trackers_dict = {}
     with open(JsonHandler.get_active_json_path(), "r") as file:
         data = json.load(file)
         user_trackers_dict = data.get('users', {})
-    # Check if tracker is global
     is_global = any(t['id'] == id for t in global_trackers)
-    # Find owner if private
     owner = None
     for user, trackers in user_trackers_dict.items():
         if any(t['id'] == id for t in trackers):
             owner = user
             break
-    # Admins can delete any tracker
+    lh.log("Checking permissions", "log")
+    # Only admins can remove global trackers
+    if is_global and not interaction.user.guild_permissions.administrator:
+        await interaction.followup.send("❌ Only administrators can remove global trackers.", suppress_embeds=True)
+        return
+    # Admins can remove any tracker
     if interaction.user.guild_permissions.administrator:
+        lh.log("User is administrator" , "log")
         if is_global:
             JsonHandler.removeTracker(id, guild_id)
             await interaction.followup.send(f"✅ Global tracker with ID {id} has been removed by admin.", suppress_embeds=True)
@@ -427,12 +412,7 @@ async def removeTracker(interaction: discord.Interaction, id: int):
             return
         await interaction.followup.send("❌ Tracker not found.", suppress_embeds=True)
         return
-    # Non-admins: can delete global trackers or their own private trackers
-    if is_global:
-        JsonHandler.removeTracker(id, guild_id)
-        await interaction.followup.send(f"✅ Global tracker with ID {id} has been removed.", suppress_embeds=True)
-        return
-    # Non-admins: can only delete their own private trackers
+    # Non-admins can only remove their own private trackers
     if owner == username:
         result = JsonHandler.removeUserTracker(username, id)
         if result:
@@ -440,32 +420,34 @@ async def removeTracker(interaction: discord.Interaction, id: int):
         else:
             await interaction.followup.send("❌ Private tracker not found.", suppress_embeds=True)
         return
-    await interaction.followup.send("❌ You can only remove global trackers or your own private trackers.", suppress_embeds=True)
+    await interaction.followup.send("❌ You can only remove your own private trackers.", suppress_embeds=True)
 
-# Slash command: set the public channel for price updates
+# Command: Set the public channel for notifications
 @client.tree.command(name="setpublicchannel", description="Set the public channel for price and tracker updates")
 async def set_public_channel(interaction: discord.Interaction):
     guild_id = str(interaction.guild.id)
     channel_id = interaction.channel.id
-    set_guild_setting(guild_id, "channel_id", channel_id)
+    guild_name = interaction.guild.name
+    set_guild_setting(guild_id, "channel_id", channel_id, guild_name)
     await interaction.response.send_message("✅ This channel is now set for public price and tracker notifications.")
 
-# Slash command: set the log channel for bot status updates
+# Command: Set the log channel for bot status updates
 @client.tree.command(name="setlogchannel", description="Set the log channel for bot status updates (still running messages)")
 async def set_log_channel(interaction: discord.Interaction):
     guild_id = str(interaction.guild.id)
     channel_id = interaction.channel.id
-    set_guild_setting(guild_id, "log_channel_id", channel_id)
+    guild_name = interaction.guild.name
+    set_guild_setting(guild_id, "log_channel_id", channel_id, guild_name)
     await interaction.response.send_message("✅ This channel is now set for bot status updates.")
 
-# Slash command: set the check-in interval (hours)
+# Command: Set the check-in interval (hours)
 @client.tree.command(name="setcheckininterval", description="Set check-in interval (hours)")
 async def set_checkin_interval(interaction: discord.Interaction, interval: int):
     guild_id = str(interaction.guild.id)
     set_guild_setting(guild_id, "checkin_interval", interval)
     await interaction.response.send_message(f"✅ Check-in interval set to {interval} hours.")
 
-# Slash command: set the scan interval (hours)
+# Command: Set the scan interval (hours)
 @client.tree.command(name="setscaninterval", description="Set scan interval (hours)")
 async def set_scan_interval(interaction: discord.Interaction, interval: int):
     guild_id = str(interaction.guild.id)

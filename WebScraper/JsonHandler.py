@@ -1,5 +1,7 @@
 import json
 import os
+import LogHandler as lh
+import uuid
 json_path = "data/data.json"
 debug_json_path = "Data/debug_data.json"
 
@@ -11,18 +13,17 @@ def get_active_json_path():
     return json_path
 
 # Get all trackers (global or user)
-def getAllJsonData(private_tracks_enabled, guild_id=None):
+def getAllJsonData(guild_id=None):
     with open(get_active_json_path(), "r") as file:
         data = json.load(file)
-    if private_tracks_enabled:
+    if guild_id is None:
         # Return all user trackers as a flat list
         all_tracks = []
         for user_tracks in data.get('users', {}).values():
             all_tracks.extend(user_tracks)
         return all_tracks
     else:
-        if guild_id is None:
-            return []
+        guild_id = str(guild_id)
         return data.get('global', {}).get(guild_id, [])
 
 # For showMyTracks
@@ -37,10 +38,11 @@ def addUserTracker(username, new_tracker):
         data = json.load(file)
     users = data.setdefault('users', {})
     user_tracks = users.setdefault(username, [])
-    # Assign a new ID
-    all_ids = [t['id'] for tracks in users.values() for t in tracks]
+    # Assign a new short ID (per user) and a UUID
+    all_ids = [t['id'] for t in user_tracks]
     new_id = max(all_ids) + 1 if all_ids else 1
     new_tracker['id'] = new_id
+    new_tracker['uuid'] = str(uuid.uuid4())
     user_tracks.append(new_tracker)
     with open(get_active_json_path(), 'w') as file:
         json.dump(data, file, indent=2)
@@ -66,10 +68,10 @@ def getObject(id, guild_id):
         for site in data.get('global', {}).get(guild_id, []):
             if site['id'] == id:
                 return site
-        print(f"No site found with ID {id} in guild {guild_id}")
+        lh.log(f"No site found with ID {id} in guild {guild_id}", "warn")
         return None
     except Exception as e:
-        print(f"Error retrieving site: {e}")
+        lh.log(f"Error retrieving site: {e}", "error")
         return None
 
 # For updating a global tracker price
@@ -84,7 +86,7 @@ def update_site_price(site_id, new_price, guild_id):
         with open(get_active_json_path(), 'w') as file:
             json.dump(data, file, indent=2)
     except Exception as e:
-        print(f"Error updating price in JSON file: {e}")
+        lh.log(f"Error updating price in JSON file: {e}", "error")
 
 # For adding a global tracker
 def addTracker(new_tracker, guild_id):
@@ -93,14 +95,15 @@ def addTracker(new_tracker, guild_id):
             data = json.load(file)
         global_trackers = data.setdefault('global', {})
         guild_trackers = global_trackers.setdefault(guild_id, [])
-        # Assign a new ID to the tracker
+        # Assign a new short ID (per guild) and a UUID
         new_id = max([site['id'] for site in guild_trackers], default=0) + 1
         new_tracker['id'] = new_id
+        new_tracker['uuid'] = str(uuid.uuid4())
         guild_trackers.append(new_tracker)
         with open(get_active_json_path(), 'w') as file:
             json.dump(data, file, indent=2)
     except Exception as e:
-        print(f"Error adding tracker: {e}")
+        lh.log(f"Error adding tracker: {e}", "error")
 
 # For removing a global tracker
 def removeTracker(id, guild_id):
@@ -112,7 +115,7 @@ def removeTracker(id, guild_id):
         with open(get_active_json_path(), 'w') as file:
             json.dump(data, file, indent=2)
     except Exception as e:
-        print(f"Error removing tracker: {e}")
+        lh.log(f"Error removing tracker: {e}", "error")
 
 def update_user_tracker_price(username, site_id, new_price):
     try:
@@ -126,4 +129,4 @@ def update_user_tracker_price(username, site_id, new_price):
         with open(get_active_json_path(), 'w') as file:
             json.dump(data, file, indent=2)
     except Exception as e:
-        print(f"Error updating user tracker price: {e}")
+        lh.log(f"Error updating user tracker price: {e}", "error")
