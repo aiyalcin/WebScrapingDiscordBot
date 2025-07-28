@@ -13,6 +13,24 @@ if platform.system() == "Windows":
 else:
     GECKODRIVER_PATH = "/usr/bin/geckodriver"
 
+def get_site_html(url, selector, use_js):
+    if use_js:
+        options = webdriver.FirefoxOptions()
+        options.add_argument('--headless')
+        service = Service(GECKODRIVER_PATH)
+        driver = webdriver.Firefox(service=service, options=options)
+        driver.get(url)
+        # Get the outer HTML of the element matching the selector
+        try:
+            price_element = driver.find_element(By.CSS_SELECTOR, selector)
+            html = price_element.get_attribute('outerHTML')
+        except Exception:
+            html = driver.page_source
+        driver.quit()
+        return html
+    else:
+        return requests.get(url).text
+
 def extractPrice(object, DEBUG, guild_id=None, username=None):
     lh.log(f"Now scraping ID: {object['id']}", "log")
     try:
@@ -20,23 +38,13 @@ def extractPrice(object, DEBUG, guild_id=None, username=None):
         selector = object['selector']
         use_js = object.get('js', False)  # Default to False if not set
 
-        if use_js:
-            options = webdriver.FirefoxOptions()
-            options.add_argument('--headless')
-            service = Service(GECKODRIVER_PATH)
-            driver = webdriver.Firefox(service=service, options=options)
-            driver.get(url)
-            price_element = driver.find_element(By.CSS_SELECTOR, selector)
-            price_text = price_element.text
-            driver.quit()
-        else:
-            html_text = requests.get(url).text
-            soup = BeautifulSoup(html_text, "lxml")
-            price_element = soup.select_one(selector)
-            if not price_element:
-                lh.log(f"Could not find price element for {object['name']}", "error")
-                return None
-            price_text = price_element.get_text(strip=True)
+        html_text = get_site_html(url, selector, use_js)
+        soup = BeautifulSoup(html_text, "lxml")
+        price_element = soup.select_one(selector)
+        if not price_element:
+            lh.log(f"Could not find price element for {object['name']}", "error")
+            return None
+        price_text = price_element.get_text(strip=True)
 
         match = re.search(r'\d+(?:[.,]\d{2})?', price_text)
         if match:

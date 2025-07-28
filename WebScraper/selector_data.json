@@ -1,0 +1,17 @@
+{
+  "amazon.com": [
+    ".a-price .a-offscreen",
+    ".a-price .a-price-whole",
+    ".a-price .a-price-fraction"
+  ],
+  "bol.com": [
+    ".promo-price"
+  ],
+  "megekko.nl": [
+    "a.prsPrice:nth-child(1)"
+  ],
+  "alternate.nl": [
+    ".price"
+  ]
+
+}
