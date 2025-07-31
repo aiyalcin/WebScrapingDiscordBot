@@ -27,17 +27,19 @@ def getAllJsonData(guild_id=None):
         return data.get('global', {}).get(guild_id, [])
 
 # For showMyTracks
-def getUserTrackers(username):
+def getUserTrackers(user_id):
+    user_id = str(user_id)
     with open(get_active_json_path(), "r") as file:
         data = json.load(file)
-    return data.get('users', {}).get(username, [])
+    return data.get('users', {}).get(user_id, [])
 
 # For adding a user tracker
-def addUserTracker(username, new_tracker):
+def addUserTracker(user_id, new_tracker):
+    user_id = str(user_id)
     with open(get_active_json_path(), 'r') as file:
         data = json.load(file)
     users = data.setdefault('users', {})
-    user_tracks = users.setdefault(username, [])
+    user_tracks = users.setdefault(user_id, [])
     # Assign a new short ID (per user) and a UUID
     all_ids = [t['id'] for t in user_tracks]
     new_id = max(all_ids) + 1 if all_ids else 1
@@ -48,14 +50,15 @@ def addUserTracker(username, new_tracker):
         json.dump(data, file, indent=2)
 
 # For removing a user tracker
-def removeUserTracker(username, id):
+def removeUserTracker(user_id, id):
+    user_id = str(user_id)
     with open(get_active_json_path(), 'r') as file:
         data = json.load(file)
     users = data.get('users', {})
-    user_tracks = users.get(username, [])
+    user_tracks = users.get(user_id, [])
     initial_len = len(user_tracks)
     user_tracks = [t for t in user_tracks if t['id'] != id]
-    users[username] = user_tracks
+    users[user_id] = user_tracks
     with open(get_active_json_path(), 'w') as file:
         json.dump(data, file, indent=2)
     return len(user_tracks) < initial_len
@@ -117,11 +120,12 @@ def removeTracker(id, guild_id):
     except Exception as e:
         lh.log(f"Error removing tracker: {e}", "error")
 
-def update_user_tracker_price(username, site_id, new_price):
+def update_user_tracker_price(user_id, site_id, new_price):
+    user_id = str(user_id)
     try:
         with open(get_active_json_path(), 'r') as file:
             data = json.load(file)
-        user_tracks = data.get('users', {}).get(username, [])
+        user_tracks = data.get('users', {}).get(user_id, [])
         for tracker in user_tracks:
             if tracker['id'] == site_id:
                 tracker['currentPrice'] = new_price
@@ -130,3 +134,18 @@ def update_user_tracker_price(username, site_id, new_price):
             json.dump(data, file, indent=2)
     except Exception as e:
         lh.log(f"Error updating user tracker price: {e}", "error")
+
+# Update the name of a user tracker by user_id and site_id
+def update_user_tracker_name(user_id, site_id, new_name):
+    user_id = str(user_id)
+    try:
+        with open(get_active_json_path(), 'r') as file:
+            data = json.load(file)
+        user_tracks = data.get('users', {}).get(user_id, [])
+        for tracker in user_tracks:
+            if tracker['id'] == site_id:
+                tracker['name'] = new_name
+        with open(get_active_json_path(), 'w') as file:
+            json.dump(data, file, indent=2)
+    except Exception as e:
+        lh.log(f"Error updating user tracker name: {e}", "error")

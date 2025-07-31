@@ -58,7 +58,7 @@
     ]
   },
   "users": {
-    "axyl_xy": [
+    "447030198064513033": [
       {
         "name": "Wide fit t-shirt ASOS",
         "url": "https://www.asos.com/nl/4505/4505-icon-oversized-t-shirt-van-sneldrogend-zwaar-katoen-in-zwart/prd/207632238#ctaref-more%20colours%20swatches&featureref1-more%20colours%20swatches",
@@ -114,7 +114,7 @@
         "uuid": "00000000-0000-0000-0000-000000000012"
       },
       {
-        "name": "ASOS DESIGN - Oversized T-shirt met grafische bloemenprint",
+        "name": "axyl_xy",
         "url": "https://www.asos.com/nl/asos-design/asos-design-oversized-t-shirt-met-grafische-bloemenprint-in-beige/prd/208089821#colourWayId-208089831",
         "selector": ".MwTOW",
         "currentPrice": "19,99",
@@ -122,7 +122,6 @@
         "js": true,
         "uuid": "00000000-0000-0000-0000-000000000013"
       }
-    ],
-    "astro_w4896": []
+    ]
   }
 }

@@ -9,6 +9,27 @@ import platform
 import json
 from urllib.parse import urlparse
 
+def is_grey_color(color_str):
+    color_str = color_str.strip().lower()
+    if color_str in ['grey', 'gray']:
+        return True
+    rgb_match = re.match(r'rgb\((\d+),\s*(\d+),\s*(\d+)\)', color_str)
+    if rgb_match:
+        r, g, b = map(int, rgb_match.groups())
+    elif color_str.startswith('#'):
+        hex_val = color_str.lstrip('#')
+        if len(hex_val) == 3:
+            r, g, b = [int(hex_val[i]*2, 16) for i in range(3)]
+        elif len(hex_val) == 6:
+            r, g, b = [int(hex_val[i:i+2], 16) for i in (0, 2, 4)]
+        else:
+            return False
+    else:
+        return False
+    if max(abs(r-g), abs(r-b), abs(g-b)) < 15 and 80 <= r <= 200:
+        return True
+    return False
+
 if platform.system() == "Windows":
     GECKODRIVER_PATH = r"C:\Coding\Github\WebScrapingDiscordBot\WebScraper\bin\geckodriver\geckodriver.exe"
 else:
@@ -39,7 +60,6 @@ def get_domain(url):
     return domain
 
 def clean_price_text(price_text):
-    # Remove all price symbols and currency codes
     return re.sub(r'[$€£¥₹USD|EUR|GBP|CAD|AUD|CHF|RUB|kr|PLN|CZK|SEK|NOK|DKK\s]+', '', price_text, flags=re.I)
 
 def try_known_selectors(url, html, domain):
@@ -85,6 +105,9 @@ def find_price_candidates(soup):
             style = parent.get('style', '')
             if 'line-through' in style or 'text-decoration:line-through' in style:
                 continue
+            color_match = re.search(r'color\s*:\s*([^;]+)', style)
+            if color_match and is_grey_color(color_match.group(1)):
+                continue
             ancestor = parent
             crossed_out = False
             while ancestor:
@@ -96,6 +119,10 @@ def find_price_candidates(soup):
                     crossed_out = True
                     break
                 if ancestor.has_attr('data-a-strike') and ancestor['data-a-strike'] == 'true':
+                    crossed_out = True
+                    break
+                color_match = re.search(r'color\s*:\s*([^;]+)', style)
+                if color_match and is_grey_color(color_match.group(1)):
                     crossed_out = True
                     break
                 ancestor = ancestor.parent if hasattr(ancestor, 'parent') else None
@@ -156,45 +183,33 @@ def score_candidate(el, selector, text, font_size=None):
 def auto_detect_price(url):
     html = fetch_html(url, use_js=False)
     domain = get_domain(url)
-    # Try known selectors first
     known_price, known_selector = try_known_selectors(url, html, domain)
     if known_price:
-        print(f"[DEBUG] Used known selector: {known_selector}")
-        print(f"Most likely price: {known_price}\nCSS Selector: {known_selector}")
-        return
-    # If not found, run the algorithm
+        return known_price
     soup = BeautifulSoup(html, 'lxml')
     candidates = find_price_candidates(soup)
     if not candidates:
         html = fetch_html(url, use_js=True)
-        # Try known selectors again with JS
         known_price, known_selector = try_known_selectors(url, html, domain)
         if known_price:
-            print(f"[DEBUG] Used known selector (JS): {known_selector}")
-            print(f"Most likely price: {known_price}\nCSS Selector: {known_selector}")
-            return
+            return known_price
         soup = BeautifulSoup(html, 'lxml')
         candidates = find_price_candidates(soup)
         if not candidates:
-            print("No price-like elements found, even with JavaScript rendering.")
-            return
-        print("JavaScript rendering was required.")
-    else:
-        print("HTML-only rendering was sufficient.")
+            return None
     scored = [(score_candidate(el, sel, txt, font_size), el, sel, txt) for el, sel, txt, font_size in candidates]
     scored.sort(key=lambda x: x[0], reverse=True)
-    print("[DEBUG] All found price candidates (full element text):")
-    for score, el, sel, txt in scored:
-        print(f"  {clean_price_text(el.get_text(strip=True))}")
     if not scored:
-        print("No price candidates found after filtering.")
-        return
+        return None
     best = scored[0]
     cleaned_best = clean_price_text(best[1].get_text(strip=True))
-    print(f"[DEBUG] Found price text: {cleaned_best}")
-    print(f"Most likely price: {cleaned_best}\nCSS Selector: {best[2]}")
+    return cleaned_best
 
 if __name__ == "__main__":
     while True:
         url = input("enter url here:")
-        auto_detect_price(url)
+        price = auto_detect_price(url)
+        if price:
+            print(f"Most likely price: {price}")
+        else:
+            print("Price not found.")
