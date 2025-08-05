@@ -381,8 +381,12 @@ async def showMyTracks(interaction: discord.Interaction):
 # Command: Add a new global tracker
 @client.tree.command(name="addglobaltracker", description="Adds a new global tracker to the list")
 async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str, css_selector: str):
-    if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("? Only administrators can add global trackers.")
+    # Only allow in guild and for admins
+    if interaction.guild is None or not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message(
+            "❌ This command can only be used by server administrators in a server channel.",
+            ephemeral=True
+        )
         return
     lh.log(f"{get_user_display(interaction.user)} ran the addglobaltracker command.", "log")
     lh.log("Starting addglobaltracker command.", "log")
@@ -402,7 +406,7 @@ async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str
         except requests.exceptions.Timeout:
             lh.log(f"Timeout checking JS requirement for {url}", "error")
             js_required = True
-            await msg.edit(content=f"?? Timeout while checking {url}. Assuming JavaScript is required.")
+            await msg.edit(content=f"⚠️ Timeout while checking {url}. Assuming JavaScript is required.")
         except Exception as e:
             lh.log(f"Error checking JS requirement: {e}", "error")
             js_required = True
@@ -417,14 +421,14 @@ async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str
             elif view.value is False:
                 return
             else:
-                await interaction.followup.send("? No response. Please add the tracker manually.")
+                await interaction.followup.send("⏰ No response. Please add the tracker manually.")
                 return
         # If no price found, fall back to manual
         new_tracker = {"name": name, "url": url, "selector": css_selector, "currentPrice": "0", "js": js_required}
         JsonHandler.addTracker(new_tracker, guild_id)
-        await msg.edit(content=f"? Now tracking globally: {name} (JavaScript required: {js_required})")
+        await msg.edit(content=f"✅ Now tracking globally: {name} (JavaScript required: {js_required})")
     else:
-        await msg.edit(content="? Invalid url!")
+        await msg.edit(content="❌ Invalid url!")
 
 # Command: Add a new private tracker for the user
 @client.tree.command(name="addprivatetrackermanual", description="Adds a new private tracker to your list")
@@ -525,26 +529,32 @@ async def removeTracker(interaction: discord.Interaction, id: int):
 # Command: Set the public channel for notifications
 @client.tree.command(name="setpublicchannel", description="Set the public channel for price and tracker updates")
 async def set_public_channel(interaction: discord.Interaction):
-    if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("? Only administrators can set the public channel.")
+    if interaction.guild is None or not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message(
+            "❌ This command can only be used by server administrators in a server channel.",
+            ephemeral=True
+        )
         return
     guild_id = str(interaction.guild.id)
     channel_id = interaction.channel.id
     guild_name = interaction.guild.name
     set_guild_setting(guild_id, "channel_id", channel_id, guild_name)
-    await interaction.response.send_message("? This channel is now set for public price and tracker notifications.")
+    await interaction.response.send_message("✅ This channel is now set for public price and tracker notifications.")
 
 # Command: Set the log channel for bot status updates
 @client.tree.command(name="setlogchannel", description="Set the log channel for bot status updates (still running messages)")
 async def set_log_channel(interaction: discord.Interaction):
-    if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("? Only administrators can set the log channel.")
+    if interaction.guild is None or not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message(
+            "❌ This command can only be used by server administrators in a server channel.",
+            ephemeral=True
+        )
         return
     guild_id = str(interaction.guild.id)
     channel_id = interaction.channel.id
     guild_name = interaction.guild.name
     set_guild_setting(guild_id, "log_channel_id", channel_id, guild_name)
-    await interaction.response.send_message("? This channel is now set for bot status updates.")
+    await interaction.response.send_message("✅ This channel is now set for bot status updates.")
 
 # Command: Set the check-in interval (hours)
 @client.tree.command(name="setcheckininterval", description="Set check-in interval (hours)")
@@ -569,7 +579,7 @@ async def set_scan_interval(interaction: discord.Interaction, interval: int):
 # Command: Automatically add a tracker by auto-detecting the price and confirming with the user
 @client.tree.command(name="addprivatetracker", description="Adds a new private tracker.")
 async def addPrivateTracker(interaction: discord.Interaction, name: str, url: str):
-    lh.log(f"{get_user_display(interaction.user)} ran the addtrackerauto command.", "log")
+    lh.log(f"{get_user_display(interaction.user)} ran the addprivatetracker command.", "log")
     await interaction.response.send_message("Auto-detecting price. One moment...")
     msg = await interaction.original_response()
 
