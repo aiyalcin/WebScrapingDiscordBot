@@ -19,7 +19,8 @@ async def CheckPrivateTrackers(DEBUG, discord_notify=None):
         seen = set()
         unique_trackers = []
         for tracker in user_trackers:
-            key = (tracker['url'], tracker['selector'])
+            selector = tracker.get('active_selector') or (tracker.get('selectors')[0] if tracker.get('selectors') else tracker.get('selector'))
+            key = (tracker['url'], selector)
             if key not in seen:
                 seen.add(key)
                 unique_trackers.append(tracker)

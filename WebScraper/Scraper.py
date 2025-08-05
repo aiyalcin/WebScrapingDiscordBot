@@ -37,35 +37,42 @@ async def extractPrice(object, DEBUG, guild_id=None, user_id=None, discord_notif
     lh.log(f"Now scraping ID: {object['id']}", "log")
     try:
         url = object['url']
-        selector = object['selector']
-        use_js = object.get('js', False)  # Default to False if not set
-
+        selectors = object.get('selectors')
+        if not selectors:
+            selectors = [object.get('selector')]
+        use_js = object.get('js', False)
         lh.log(f"Requesting URL: {url}", "log")
-        html_text = get_site_html(url, selector, use_js)
+        html_text = get_site_html(url, selectors[0], use_js)
         if not html_text or len(html_text) < 100:
             lh.log(f"HTML response is empty or too short for {object['name']} price likely rendered with JavaScript", "warn")
         else:
             lh.log(f"HTML response length for {object['name']}: {len(html_text)}", "log")
         soup = BeautifulSoup(html_text, "lxml")
-        lh.log(f"Using selector: {selector}", "log")
-        price_element = soup.select_one(selector)
-        # If not found, try other selectors from selector_data.json
+        price_element = None
+        active_selector = None
+        for sel in selectors:
+            price_element = soup.select_one(sel)
+            if price_element:
+                active_selector = sel
+                break
         if not price_element:
             domain = urlparse(url).netloc.replace('www.', '')
             try:
                 with open('selector_data.json', 'r') as f:
                     selector_data = json.load(f)
-                selectors = selector_data.get(domain, [])
-                for alt_selector in selectors:
-                    if alt_selector == selector:
+                extra_selectors = selector_data.get(domain, [])
+                for alt_selector in extra_selectors:
+                    if alt_selector in selectors:
                         continue
                     price_element = soup.select_one(alt_selector)
                     if price_element:
-                        selector = alt_selector
+                        active_selector = alt_selector
+                        selectors.append(alt_selector)
                         break
             except Exception as e:
                 lh.log(f"Error loading selector_data.json: {e}", "error")
         if not price_element:
+            print(html_text)
             lh.log(f"Could not find price element for {object['name']} with any known selector. Item might be sold out or selector has changed.", "warn")
             # Discord notification logic
             if discord_notify:
@@ -82,7 +89,9 @@ async def extractPrice(object, DEBUG, guild_id=None, user_id=None, discord_notif
             lh.log(f"Could not extract price from text: '{price_text}'", "error")
             return None
 
-        # Update price in the correct place
+        # Update price and active_selector in the correct place
+        object['active_selector'] = active_selector
+        object['currentPrice'] = clean_price
         if guild_id is not None:
             JsonHandler.update_site_price(object['id'], clean_price, guild_id)
         elif user_id is not None:

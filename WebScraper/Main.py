@@ -13,21 +13,23 @@ import time
 import validators
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse
 import ipaddress
 import socket
 import shutil
 import json
+from urllib.parse import urlparse
 import datetime
 import importlib.util
 import AutoDetectPrice
 import asyncio
+import sys
 
 #TODO remove private tracks enabled, messaging, automatic price finder algorithm
 
 
 # Default intervals and debug flags
-DEBUG = False
+DEBUG = True
+delay_seconds = 0 # delay scanning for debug mode in seconds
 
 # Path to the guild configuration file
 CONFIG_PATH = "config/guild_config.json"
@@ -93,6 +95,10 @@ class Client(commands.Bot):
                 await self.tree.sync(guild=guild)
         except Exception as e:
             lh.log(e, "error")
+        # Only delay if DEBUG is True
+        if DEBUG:
+            lh.log(f"DEBUG mode: delaying start of scrapers by {delay_seconds} seconds...", "warn")
+            await asyncio.sleep(delay_seconds)
         for guild in self.guilds:
             await self.start_guild_tasks(guild)
         # Start a single background task for private trackers
@@ -185,8 +191,7 @@ class Client(commands.Bot):
                     if user_id:
                         try:
                             user = await self.fetch_user(user_id)
-                            # Update tracker name to current Discord username
-                            JsonHandler.update_user_tracker_name(user_id, price['id'], user.name)
+                            # Remove tracker name update, do not overwrite item name with username
                             dm_message = f"Your tracker '{price['name']}' changed price: OLD price: {price['Old price']} --> NEW price {price['New price']}"
                             await user.send(dm_message)
                             lh.log(f"DM sent to user_id {user_id}", "success")
@@ -208,7 +213,7 @@ class ConfirmPriceView(discord.ui.View):
         self.value = True
         self.interaction = interaction
         self.stop()
-        await interaction.response.edit_message(content="? Price confirmed. Tracker added.", view=None)
+        await interaction.response.edit_message(content="✅ Price confirmed. Tracker added.", view=None)
 
     @discord.ui.button(label="No", style=discord.ButtonStyle.danger)
     async def no(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -290,9 +295,24 @@ def get_user_display(user):
     else:
         return username
 
+def get_known_selectors(url):
+    domain = urlparse(url).netloc.replace('www.', '')
+    try:
+        with open('selector_data.json', 'r') as f:
+            selector_data = json.load(f)
+        return selector_data.get(domain, [])
+    except Exception:
+        return []
+
 # Command: Show all global tracked prices
 @client.tree.command(name="pricetrackglobal", description="Return list of tracked prices for all global trackers")
 async def priceTrackGlobal(interaction: discord.Interaction):
+    if interaction.guild is None:
+        await interaction.response.send_message(
+            "❌ This command can only be run in a server, not in DMs.",
+            ephemeral=True
+        )
+        return
     lh.log(f"{get_user_display(interaction.user)} ran the pricetrackglobal command.", "log")
     lh.log("Starting pricetrackglobal command.", "log")
     try:
@@ -367,7 +387,8 @@ async def showMyTracks(interaction: discord.Interaction):
     if not user_tracks:
         await msg.edit(content="You have no tracks yet.")
         return
-    message = f"Tracks for {user_id}:\n"
+    display_name = get_user_display(interaction.user)
+    message = f"Tracks for {display_name}:\n"
     for data in user_tracks:
         message += f"ID: {data['id']} | Name: {data['name']} | URL: {data['url']}\n"
     MAX_MESSAGE_LENGTH = 2000
@@ -381,7 +402,6 @@ async def showMyTracks(interaction: discord.Interaction):
 # Command: Add a new global tracker
 @client.tree.command(name="addglobaltracker", description="Adds a new global tracker to the list")
 async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str, css_selector: str):
-    # Only allow in guild and for admins
     if interaction.guild is None or not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message(
             "❌ This command can only be used by server administrators in a server channel.",
@@ -396,10 +416,18 @@ async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str
     if isValidUrl(url):
         js_required = False
         found_price = None
+        known_selectors = get_known_selectors(url)
+        selectors = [css_selector] + [s for s in known_selectors if s != css_selector]
         try:
             html_text = requests.get(url, timeout=5).text
             soup = BeautifulSoup(html_text, "lxml")
-            price_element = soup.select_one(css_selector)
+            price_element = None
+            active_selector = None
+            for sel in selectors:
+                price_element = soup.select_one(sel)
+                if price_element:
+                    active_selector = sel
+                    break
             if price_element:
                 found_price = price_element.get_text(strip=True)
             js_required = price_element is None
@@ -415,7 +443,7 @@ async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str
             await msg.edit(content=f"Is this the correct price for **{name}**? `{found_price}`", view=view)
             timeout = await view.wait()
             if view.value is True:
-                new_tracker = {"name": name, "url": url, "selector": css_selector, "currentPrice": found_price, "js": js_required}
+                new_tracker = {"name": name, "url": url, "selectors": selectors, "active_selector": active_selector, "currentPrice": found_price, "js": js_required}
                 JsonHandler.addTracker(new_tracker, guild_id)
                 return
             elif view.value is False:
@@ -424,7 +452,7 @@ async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str
                 await interaction.followup.send("⏰ No response. Please add the tracker manually.")
                 return
         # If no price found, fall back to manual
-        new_tracker = {"name": name, "url": url, "selector": css_selector, "currentPrice": "0", "js": js_required}
+        new_tracker = {"name": name, "url": url, "selectors": selectors, "active_selector": None, "currentPrice": "0", "js": js_required}
         JsonHandler.addTracker(new_tracker, guild_id)
         await msg.edit(content=f"✅ Now tracking globally: {name} (JavaScript required: {js_required})")
     else:
@@ -441,10 +469,18 @@ async def addPrivateTracker(interaction: discord.Interaction, name: str, url: st
     if isValidUrl(url):
         js_required = False
         found_price = None
+        known_selectors = get_known_selectors(url)
+        selectors = [css_selector] + [s for s in known_selectors if s != css_selector]
         try:
             html_text = requests.get(url, timeout=10).text
             soup = BeautifulSoup(html_text, "lxml")
-            price_element = soup.select_one(css_selector)
+            price_element = None
+            active_selector = None
+            for sel in selectors:
+                price_element = soup.select_one(sel)
+                if price_element:
+                    active_selector = sel
+                    break
             if price_element:
                 found_price = price_element.get_text(strip=True)
             js_required = price_element is None
@@ -460,7 +496,7 @@ async def addPrivateTracker(interaction: discord.Interaction, name: str, url: st
             await msg.edit(content=f"Is this the correct price for **{name}**? `{found_price}`", view=view)
             timeout = await view.wait()
             if view.value is True:
-                new_tracker = {"name": name, "url": url, "selector": css_selector, "currentPrice": found_price, "js": js_required}
+                new_tracker = {"name": name, "url": url, "selectors": selectors, "active_selector": active_selector, "currentPrice": found_price, "js": js_required}
                 JsonHandler.addUserTracker(user_id, new_tracker)
                 return
             elif view.value is False:
@@ -469,7 +505,7 @@ async def addPrivateTracker(interaction: discord.Interaction, name: str, url: st
                 await interaction.followup.send("? No response. Please add the tracker manually.")
                 return
         # If no price found, fall back to manual
-        new_tracker = {"name": name, "url": url, "selector": css_selector, "currentPrice": "0", "js": js_required}
+        new_tracker = {"name": name, "url": url, "selectors": selectors, "active_selector": None, "currentPrice": "0", "js": js_required}
         JsonHandler.addUserTracker(user_id, new_tracker)
         await msg.edit(content=f"? Now tracking for you: {name} (JavaScript required: {js_required})")
     else:
@@ -483,6 +519,17 @@ async def removeTracker(interaction: discord.Interaction, id: int):
     lh.log("Starting removeTracker command.", "log")
     lh.log("Getting data from data.json", "log")
     user_id = str(interaction.user.id)
+
+    # If in DM, only allow removal of user's own private trackers
+    if interaction.guild is None:
+        result = JsonHandler.removeUserTracker(user_id, id)
+        if result:
+            await interaction.followup.send(f"✅ Your private tracker with ID {id} has been removed.", suppress_embeds=True)
+        else:
+            await interaction.followup.send("❌ Private tracker not found.", suppress_embeds=True)
+        return
+
+    # Guild context: original logic
     guild_id = str(interaction.guild.id)
     global_trackers = JsonHandler.getAllJsonData(guild_id)
     user_trackers_dict = {}
@@ -498,33 +545,33 @@ async def removeTracker(interaction: discord.Interaction, id: int):
     lh.log("Checking permissions", "log")
     # Only admins can remove global trackers
     if is_global and not interaction.user.guild_permissions.administrator:
-        await interaction.followup.send("? Only administrators can remove global trackers.", suppress_embeds=True)
+        await interaction.followup.send("❌ Only administrators can remove global trackers.", suppress_embeds=True)
         return
     # Admins can remove any tracker
     if interaction.user.guild_permissions.administrator:
         lh.log("User is administrator" , "log")
         if is_global:
             JsonHandler.removeTracker(id, guild_id)
-            await interaction.followup.send(f"? Global tracker with ID {id} has been removed by admin.", suppress_embeds=True)
+            await interaction.followup.send(f"✅ Global tracker with ID {id} has been removed by admin.", suppress_embeds=True)
             return
         if owner:
             result = JsonHandler.removeUserTracker(owner, id)
             if result:
-                await interaction.followup.send(f"? Private tracker with ID {id} has been removed by admin.", suppress_embeds=True)
+                await interaction.followup.send(f"✅ Private tracker with ID {id} has been removed by admin.", suppress_embeds=True)
             else:
-                await interaction.followup.send("? Private tracker not found.", suppress_embeds=True)
+                await interaction.followup.send("❌ Private tracker not found.", suppress_embeds=True)
             return
-        await interaction.followup.send("? Tracker not found.", suppress_embeds=True)
+        await interaction.followup.send("❌ Tracker not found.", suppress_embeds=True)
         return
     # Non-admins can only remove their own private trackers
     if owner == user_id:
         result = JsonHandler.removeUserTracker(user_id, id)
         if result:
-            await interaction.followup.send(f"? Your private tracker with ID {id} has been removed.", suppress_embeds=True)
+            await interaction.followup.send(f"✅ Your private tracker with ID {id} has been removed.", suppress_embeds=True)
         else:
-            await interaction.followup.send("? Private tracker not found.", suppress_embeds=True)
+            await interaction.followup.send("❌ Private tracker not found.", suppress_embeds=True)
         return
-    await interaction.followup.send("? You can only remove your own private trackers.", suppress_embeds=True)
+    await interaction.followup.send("❌ You can only remove your own private trackers.", suppress_embeds=True)
 
 # Command: Set the public channel for notifications
 @client.tree.command(name="setpublicchannel", description="Set the public channel for price and tracker updates")
@@ -583,27 +630,46 @@ async def addPrivateTracker(interaction: discord.Interaction, name: str, url: st
     await interaction.response.send_message("Auto-detecting price. One moment...")
     msg = await interaction.original_response()
 
-    found_price = AutoDetectPrice.auto_detect_price(url)
-    if found_price:
+    found_price, found_selector = AutoDetectPrice.auto_detect_price(url)
+    lh.log(f"Auto-detect found selector: {found_selector}", "log")  # Log found selector
+
+    if found_price and found_selector:
         view = ConfirmPriceView()
         await msg.edit(content=f"Is this the correct price for **{name}**? `{found_price}`", view=view)
         timeout = await view.wait()
         if view.value is True:
+            lh.log(f"User confirmed selector: {found_selector}", "success")  # Log confirmation
             user_id = str(interaction.user.id)
-            new_tracker = {"name": name, "url": url, "selector": "auto", "currentPrice": found_price, "js": False}
+            new_tracker = {
+                "name": name,
+                "url": url,
+                "selectors": [found_selector],
+                "active_selector": found_selector,
+                "currentPrice": found_price,
+                "js": False
+            }
             JsonHandler.addUserTracker(user_id, new_tracker)
             return
         elif view.value is False:
+            lh.log(f"User rejected selector: {found_selector}", "warn")  # Log rejection
             return
         else:
+            lh.log(f"User did not respond to selector confirmation: {found_selector}", "warn")  # Log no response
             await interaction.followup.send("? No response. Please add the tracker manually.")
             return
     else:
+        lh.log("Auto-detect could not find a price or selector.", "error")  # Log failure
         await msg.edit(content="? Could not auto-detect a price. Please add the tracker manually.")
 
 # Command: Show all global trackers for this guild (admins only)
 @client.tree.command(name="showglobaltracks", description="Show all global trackers for this guild (admins only)")
 async def showGlobalTracks(interaction: discord.Interaction):
+    if interaction.guild is None:
+        await interaction.response.send_message(
+            "❌ This command can only be run in a server, not in DMs.",
+            ephemeral=True
+        )
+        return
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("? Only administrators can run this command.")
         return
@@ -625,6 +691,16 @@ async def showGlobalTracks(interaction: discord.Interaction):
         await msg.edit(content="?? The list of global trackers is too long for a message. See the attached file:", attachments=[file])
     else:
         await msg.edit(content=message)
+
+# Error handling for unhandled exceptions
+def global_exception_handler(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    lh.log(f"Unhandled exception: {exc_value}", "error")
+    # You can add more actions here (e.g., notify admins, cleanup, etc.)
+
+sys.excepthook = global_exception_handler
 
 # Start the Discord bot
 client.run(discordBotKey)

@@ -7,9 +7,9 @@
   "bol.com": [
     ".promo-price"
   ],
-  "megekko.nl": [
-    "a.prsPrice:nth-child(1)"
-  ],
+  //"megekko.nl": [
+  //  "a.prsPrice:nth-child(1)"
+  //],
   "alternate.nl": [
     ".price"
   ],

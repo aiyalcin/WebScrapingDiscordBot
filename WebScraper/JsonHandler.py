@@ -34,6 +34,7 @@ def getUserTrackers(user_id):
     return data.get('users', {}).get(user_id, [])
 
 # For adding a user tracker
+# Now supports selectors and active_selector
 def addUserTracker(user_id, new_tracker):
     user_id = str(user_id)
     with open(get_active_json_path(), 'r') as file:
@@ -45,6 +46,13 @@ def addUserTracker(user_id, new_tracker):
     new_id = max(all_ids) + 1 if all_ids else 1
     new_tracker['id'] = new_id
     new_tracker['uuid'] = str(uuid.uuid4())
+    # Ensure selectors and active_selector fields exist
+    if 'selectors' not in new_tracker and 'selector' in new_tracker:
+        new_tracker['selectors'] = [new_tracker['selector']]
+        new_tracker['active_selector'] = new_tracker['selector']
+        del new_tracker['selector']
+    elif 'selectors' in new_tracker and 'active_selector' not in new_tracker:
+        new_tracker['active_selector'] = new_tracker['selectors'][0] if new_tracker['selectors'] else None
     user_tracks.append(new_tracker)
     with open(get_active_json_path(), 'w') as file:
         json.dump(data, file, indent=2)
@@ -92,6 +100,7 @@ def update_site_price(site_id, new_price, guild_id):
         lh.log(f"Error updating price in JSON file: {e}", "error")
 
 # For adding a global tracker
+# Now supports selectors and active_selector
 def addTracker(new_tracker, guild_id):
     try:
         with open(get_active_json_path(), 'r') as file:
@@ -102,6 +111,13 @@ def addTracker(new_tracker, guild_id):
         new_id = max([site['id'] for site in guild_trackers], default=0) + 1
         new_tracker['id'] = new_id
         new_tracker['uuid'] = str(uuid.uuid4())
+        # Ensure selectors and active_selector fields exist
+        if 'selectors' not in new_tracker and 'selector' in new_tracker:
+            new_tracker['selectors'] = [new_tracker['selector']]
+            new_tracker['active_selector'] = new_tracker['selector']
+            del new_tracker['selector']
+        elif 'selectors' in new_tracker and 'active_selector' not in new_tracker:
+            new_tracker['active_selector'] = new_tracker['selectors'][0] if new_tracker['selectors'] else None
         guild_trackers.append(new_tracker)
         with open(get_active_json_path(), 'w') as file:
             json.dump(data, file, indent=2)

@@ -138,23 +138,18 @@ def find_price_candidates(soup):
     return candidates
 
 def get_css_selector(element):
-    path = []
-    while element and element.name != '[document]':
-        selector = element.name
-        if element.get('id'):
-            selector += f"#{element['id']}"
-            path.insert(0, selector)
-            break
-        elif element.get('class'):
-            selector += '.' + '.'.join(element['class'])
-        siblings = element.find_previous_siblings(element.name)
-        if siblings:
-            selector += f":nth-child({len(siblings)+1})"
-        path.insert(0, selector)
-        if element.get('class') and not siblings:
-            break
-        element = element.parent
-    return ' > '.join(path)
+    # Prefer a single unique class selector
+    if element.get('class'):
+        # If only one class, use it
+        if len(element['class']) == 1:
+            return f".{element['class'][0]}"
+        # If multiple classes, join them
+        return "." + ".".join(element['class'])
+    # If no class, fallback to id
+    if element.get('id'):
+        return f"#{element['id']}"
+    # Otherwise, fallback to tag name
+    return element.name
 
 def score_candidate(el, selector, text, font_size=None):
     score = 0
@@ -183,28 +178,48 @@ def score_candidate(el, selector, text, font_size=None):
 def auto_detect_price(url):
     html = fetch_html(url, use_js=False)
     domain = get_domain(url)
+
+    # Try known selectors first
     known_price, known_selector = try_known_selectors(url, html, domain)
     if known_price:
-        return known_price
+        return known_price, known_selector
+
+    # Find price candidates in the HTML
     soup = BeautifulSoup(html, 'lxml')
     candidates = find_price_candidates(soup)
+
+    # If no candidates, try with JS enabled
     if not candidates:
         html = fetch_html(url, use_js=True)
         known_price, known_selector = try_known_selectors(url, html, domain)
         if known_price:
-            return known_price
+            return known_price, known_selector
         soup = BeautifulSoup(html, 'lxml')
         candidates = find_price_candidates(soup)
         if not candidates:
-            return None
-    scored = [(score_candidate(el, sel, txt, font_size), el, sel, txt) for el, sel, txt, font_size in candidates]
-    scored.sort(key=lambda x: x[0], reverse=True)
-    if not scored:
-        return None
-    best = scored[0]
-    cleaned_best = clean_price_text(best[1].get_text(strip=True))
-    return cleaned_best
+            return None, None
 
+    # Score and sort candidates
+    scored_candidates = []
+    for el, selector, text, font_size in candidates:
+        score = score_candidate(el, selector, text, font_size)
+        scored_candidates.append({
+            "element": el,
+            "selector": selector,
+            "text": text,
+            "score": score
+        })
+    scored_candidates.sort(key=lambda x: x["score"], reverse=True)
+
+    if not scored_candidates:
+        return None, None
+
+    # Get the best candidate
+    best_candidate = scored_candidates[0]
+    cleaned_price = clean_price_text(best_candidate["element"].get_text(strip=True))
+    best_selector = best_candidate["selector"]
+
+    return cleaned_price, best_selector
 if __name__ == "__main__":
     while True:
         url = input("enter url here:")
