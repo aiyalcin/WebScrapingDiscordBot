@@ -1,0 +1,91 @@
+Here is a comprehensive test plan for your Discord price tracking bot. This plan covers all major functionalities, authorization checks, and input validation. You can follow these steps to manually test your bot, or use them as a basis for automated tests.
+---
+1. Bot Startup and Configuration
+•	Test: Start the bot with and without DEBUG mode.
+•	Expected: Bot logs in, creates/removes debug data file as appropriate, and logs status.
+---
+2. Authorization & Permissions
+•	Test: Run admin-only commands as a non-admin user.
+•	/showalltracks
+•	/addglobaltracker
+•	/setpublicchannel
+•	/setlogchannel
+•	/setcheckininterval
+•	/setscaninterval
+•	Expected: Non-admins receive a "Only administrators can..." error message.
+•	Test: Run the above commands as an admin.
+•	Expected: Commands execute successfully.
+---
+3. Tracker Management
+3.1. Add Global Tracker
+•	Test: Add a global tracker with valid name and URL as admin.
+•	Expected: Bot auto-detects price, asks for confirmation, and adds tracker on confirmation.
+•	Test: Add with invalid name (too short, too long, special chars).
+•	Expected: Validation error.
+•	Test: Add with invalid URL (bad format, private IP, etc).
+•	Expected: Validation error.
+•	Test: Add as non-admin.
+•	Expected: Authorization error.
+3.2. Add Private Tracker (Auto & Manual)
+•	Test: Add a private tracker with valid/invalid name and URL as a user.
+•	Expected: Same validation as above.
+•	Test: Add with valid/invalid CSS selector (manual).
+•	Expected: If selector is invalid, tracker is added with JS required or error is shown.
+3.3. Remove Tracker
+•	Test: Remove a global tracker as admin.
+•	Expected: Tracker is removed.
+•	Test: Remove a global tracker as non-admin.
+•	Expected: Authorization error.
+•	Test: Remove a private tracker as owner.
+•	Expected: Tracker is removed.
+•	Test: Remove a private tracker as non-owner.
+•	Expected: Authorization error.
+•	Test: Remove a non-existent tracker.
+•	Expected: Error message.
+---
+4. Tracker Listing
+•	Test: /showalltracks as admin.
+•	Expected: List of all global and user trackers, or file if too long.
+•	Test: /showmytracks as user.
+•	Expected: List of user’s trackers, or file if too long.
+•	Test: /showglobaltracks as admin.
+•	Expected: List of global trackers for the guild.
+---
+5. Channel and Interval Settings
+•	Test: Set public/log channel as admin.
+•	Expected: Channel is set, confirmation message.
+•	Test: Set check-in/scan interval as admin.
+•	Expected: Interval is set, confirmation message.
+•	Test: Set any of the above as non-admin.
+•	Expected: Authorization error.
+---
+6. Price Change Notifications
+•	Test: Change the price of a tracked item (manually or wait for real change).
+•	Expected: Bot sends notification to the correct channel or user.
+•	Test: Price element/selector is missing or item is sold out.
+•	Expected: Bot notifies admins (global) or user (private) about the issue.
+---
+7. Validation
+•	Test: Add tracker with invalid name (length, characters).
+•	Expected: Validation error.
+•	Test: Add tracker with invalid URL (format, private IP, etc).
+•	Expected: Validation error.
+•	Test: Add tracker with valid but unreachable URL.
+•	Expected: Error or JS required message.
+---
+8. Edge Cases
+•	Test: Add duplicate trackers (same URL/selector).
+•	Expected: Should be handled gracefully (no crash, proper message).
+•	Test: Remove tracker while a price check is running.
+•	Expected: No crash, tracker is removed.
+---
+9. Bot Removal from Guild
+•	Test: Remove bot from a guild.
+•	Expected: Guild config is deleted.
+---
+10. General Robustness
+•	Test: Rapidly add/remove trackers, change settings, and run commands.
+•	Expected: No crashes, all actions logged, and state remains consistent.
+---
+Tip: For each test, check both the Discord UI and the logs for expected results and error handling.
+Let me know if you want a more detailed checklist or sample test cases for automation!

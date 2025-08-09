@@ -2,20 +2,40 @@ import JsonHandler
 import Scraper
 import json
 import LogHandler as lh
-
 import asyncio
 
-async def get_all_user_ids():
-    with open(JsonHandler.json_path, "r") as file:
-        data = json.load(file)
-    return list(data.get('users', {}).keys())
+# Define semaphores for concurrency limits
+SELENIUM_LIMIT = 2
+HTML_LIMIT = 4
+selenium_semaphore = asyncio.Semaphore(SELENIUM_LIMIT)
+html_semaphore = asyncio.Semaphore(HTML_LIMIT)
+
+async def retry_async(coro_func, *args, retries=2, delay=2, **kwargs):
+    for attempt in range(retries):
+        result = await coro_func(*args, **kwargs)
+        if result is not None:
+            return result
+        if attempt < retries - 1:
+            await asyncio.sleep(delay)
+    return None
+
+async def limited_extract_price(tracker, DEBUG, guild_id, user_id, discord_notify):
+    js_needed = tracker.get('js', False)
+    if js_needed:
+        async with selenium_semaphore:
+            return await Scraper.extractPrice(tracker, DEBUG, guild_id=guild_id, user_id=user_id, discord_notify=discord_notify)
+    else:
+        async with html_semaphore:
+            return await Scraper.extractPrice(tracker, DEBUG, guild_id=guild_id, user_id=user_id, discord_notify=discord_notify)
 
 async def CheckPrivateTrackers(DEBUG, discord_notify=None):
+    """Check all private trackers for price changes and return a list of changes."""
     changed_prices = []
-    user_ids = await get_all_user_ids()
+    user_ids = JsonHandler.get_all_user_ids()
+    tasks = []
+    tracker_refs = []
     for user_id in user_ids:
         user_trackers = JsonHandler.getUserTrackers(user_id)
-        # Deduplicate trackers by (url, selector)
         seen = set()
         unique_trackers = []
         for tracker in user_trackers:
@@ -23,52 +43,84 @@ async def CheckPrivateTrackers(DEBUG, discord_notify=None):
             if key not in seen:
                 seen.add(key)
                 unique_trackers.append(tracker)
-        # Scrape prices for unique trackers only
-        scraped_prices = []
         for tracker in unique_trackers:
-            scraped_price = await Scraper.extractPrice(tracker, DEBUG, guild_id=None, user_id=user_id, discord_notify=discord_notify)
-            scraped_prices.append({"id": tracker['id'], "name": tracker['name'], "price": scraped_price})
-        # Compare scraped prices to stored prices
-        for oldObject in unique_trackers:
-            price_old = oldObject['currentPrice'].replace("€", "")
-            for newObject in scraped_prices:
-                if newObject['id'] == oldObject['id']:
-                    lh.log(f"Scraped value: {newObject['price']} Value in data.json: {price_old}", "log")
-                    if price_old != newObject['price']:
-                        lh.log("Changed price detected!", "success")
-                        changed_price_item = {"name": newObject['name'], "Old price": price_old, "New price": newObject['price'], "user_id": user_id, "id": newObject['id']}
-                        changed_prices.append(changed_price_item)
-    if len(changed_prices) > 0:
-        return changed_prices
-    else:
-        return None
+            tasks.append(
+                limited_extract_price(tracker, DEBUG, guild_id=None, user_id=user_id, discord_notify=discord_notify)
+            )
+            tracker_refs.append((tracker, user_id))
+    scraped_prices = await asyncio.gather(*tasks)
+    # Retry failed (None) scrapes
+    retry_tasks = []
+    retry_refs = []
+    for (ref, result) in zip(tracker_refs, scraped_prices):
+        if result is None:
+            tracker, user_id = ref
+            retry_tasks.append(retry_async(
+                limited_extract_price, tracker, DEBUG, guild_id=None, user_id=user_id, discord_notify=discord_notify
+            ))
+            retry_refs.append(ref)
+    if retry_tasks:
+        retry_results = await asyncio.gather(*retry_tasks)
+        for idx, (ref, retry_result) in enumerate(zip(retry_refs, retry_results)):
+            i = tracker_refs.index(ref)
+            scraped_prices[i] = retry_result
+    # Compare scraped prices to stored prices
+    for (old, user_id), new_price in zip(tracker_refs, scraped_prices):
+        price_old = old['currentPrice'].replace("€", "")
+        lh.log(f"Tracker ID: {old['id']} | Old price: {price_old} | Scraped price: {new_price}", "log")
+        if price_old != new_price:
+            lh.log("Changed price detected!", "success")
+            changed_prices.append({
+                "name": old['name'],
+                "Old price": price_old,
+                "New price": new_price,
+                "user_id": user_id,
+                "id": old['id']
+            })
+    return changed_prices if changed_prices else None
 
 async def CheckGlobalTrackers(DEBUG, guild_id, discord_notify=None):
+    """Check all global trackers for price changes and return a list of changes."""
     changed_prices = []
     guild_id = str(guild_id)
     json_objects = JsonHandler.getAllJsonData(guild_id)
-    scraped_prices = []
+    tasks = []
+    tracker_refs = []
     for tracker in json_objects:
-        scraped_price = await Scraper.extractPrice(tracker, DEBUG, guild_id=guild_id, discord_notify=discord_notify)
-        # Update the price in the data file if scraped_price is not None
-        if scraped_price is not None:
-            JsonHandler.update_site_price(tracker['id'], scraped_price, guild_id)
-        scraped_prices.append({"id": tracker['id'], "name": tracker['name'], "price": scraped_price})
-    for oldObject in json_objects:
-        price_old = oldObject['currentPrice'].replace("€", "")
-        for newObject in scraped_prices:
-            if newObject['id'] == oldObject['id']:
-                lh.log(f"Scraped value: {newObject['price']} Value in data.json: {price_old}", "log")
-                # Only add to changed_prices if scraped_price is not None
-                if newObject['price'] is not None and price_old != newObject['price']:
-                    lh.log("Changed price detected!", "success")
-                    changed_price_item = {"name": newObject['name'], "Old price": price_old, "New price": newObject['price']}
-                    changed_prices.append(changed_price_item)
-                # If scraped_price is None, add a warning item
-                elif newObject['price'] is None:
-                    changed_price_item = {"name": newObject['name'], "Old price": price_old, "New price": None}
-                    changed_prices.append(changed_price_item)
-    if len(changed_prices) > 0:
-        return changed_prices
-    else:
-        return None
+        tasks.append(
+            limited_extract_price(tracker, DEBUG, guild_id=guild_id, user_id=None, discord_notify=discord_notify)
+        )
+        tracker_refs.append(tracker)
+    scraped_prices = await asyncio.gather(*tasks)
+    # Retry failed (None) scrapes
+    retry_tasks = []
+    retry_refs = []
+    for (ref, result) in zip(tracker_refs, scraped_prices):
+        if result is None:
+            retry_tasks.append(retry_async(
+                limited_extract_price, ref, DEBUG, guild_id=guild_id, user_id=None, discord_notify=discord_notify
+            ))
+            retry_refs.append(ref)
+    if retry_tasks:
+        retry_results = await asyncio.gather(*retry_tasks)
+        for idx, (ref, retry_result) in enumerate(zip(retry_refs, retry_results)):
+            i = tracker_refs.index(ref)
+            scraped_prices[i] = retry_result
+    # Compare scraped prices to stored prices
+    for old, new_price in zip(tracker_refs, scraped_prices):
+        price_old = old['currentPrice'].replace("€", "")
+        lh.log(f"Tracker ID: {old['id']} | Old price: {price_old} | Scraped price: {new_price}", "log")
+        if new_price is not None and price_old != new_price:
+            lh.log("Changed price detected!", "success")
+            changed_prices.append({
+                "name": old['name'],
+                "Old price": price_old,
+                "New price": new_price
+            })
+        elif new_price is None:
+            changed_prices.append({
+                "name": old['name'],
+                "Old price": price_old,
+                "New price": None
+            })
+    return changed_prices if changed_prices else None

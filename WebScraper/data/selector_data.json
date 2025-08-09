@@ -14,10 +14,14 @@
     ".price"
   ],
   "mediamarkt.nl": [
+    ".dsoNjd",
     ".iTQalG"
   ],
   "bever.nl": [
     ".as-a-text--discount > strong:nth-child(1)",
     ".as-a-price__value > span:nth-child(1) > strong:nth-child(1)"
+  ],
+  "marktplaats.nl": [
+    "div.Listing-price"
   ]
 }

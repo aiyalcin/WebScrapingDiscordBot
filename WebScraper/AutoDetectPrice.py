@@ -1,15 +1,19 @@
-import sys
 import re
 import requests
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.firefox.service import Service
-from selenium.webdriver.common.by import By
 import platform
-import json
 from urllib.parse import urlparse
+import JsonHandler
+
+if platform.system() == "Windows":
+    GECKODRIVER_PATH = r"C:\\Coding\\Github\\WebScrapingDiscordBot\\WebScraper\\bin\\geckodriver\\geckodriver.exe"
+else:
+    GECKODRIVER_PATH = "/usr/bin/geckodriver"
 
 def is_grey_color(color_str):
+    """Return True if the color string represents a shade of grey."""
     color_str = color_str.strip().lower()
     if color_str in ['grey', 'gray']:
         return True
@@ -30,19 +34,8 @@ def is_grey_color(color_str):
         return True
     return False
 
-if platform.system() == "Windows":
-    GECKODRIVER_PATH = r"C:\Coding\Github\WebScrapingDiscordBot\WebScraper\bin\geckodriver\geckodriver.exe"
-else:
-    GECKODRIVER_PATH = "/usr/bin/geckodriver"
-
 def fetch_html(url, use_js=False):
-    if not use_js:
-        try:
-            resp = requests.get(url, timeout=10)
-            if resp.status_code == 200:
-                return resp.text
-        except Exception:
-            pass
+    """Fetch HTML from a URL, optionally using Selenium for JS rendering."""
     options = webdriver.FirefoxOptions()
     options.add_argument('--headless')
     service = Service(GECKODRIVER_PATH)
@@ -53,6 +46,7 @@ def fetch_html(url, use_js=False):
     return html
 
 def get_domain(url):
+    """Extract the domain from a URL."""
     parsed = urlparse(url)
     domain = parsed.netloc
     if domain.startswith('www.'):
@@ -60,38 +54,11 @@ def get_domain(url):
     return domain
 
 def clean_price_text(price_text):
+    """Remove currency symbols and whitespace from price text."""
     return re.sub(r'[$€£¥₹USD|EUR|GBP|CAD|AUD|CHF|RUB|kr|PLN|CZK|SEK|NOK|DKK\s]+', '', price_text, flags=re.I)
 
-def try_known_selectors(url, html, domain):
-    try:
-        with open('selector_data.json', 'r') as f:
-            selector_data = json.load(f)
-    except Exception:
-        return None, None
-    selectors = selector_data.get(domain)
-    if not selectors:
-        return None, None
-    soup = BeautifulSoup(html, 'lxml')
-    for selector in selectors:
-        el = soup.select_one(selector)
-        if el and el.get_text(strip=True):
-            text = el.get_text(strip=True)
-            fraction = None
-            for child in el.find_all(recursive=False):
-                if child.has_attr('class') and any('fraction' in c for c in child['class']):
-                    fraction = child.get_text(strip=True)
-                    break
-            combined_text = text
-            if fraction:
-                if not (',' in text or '.' in text):
-                    combined_text = f"{text},{fraction}"
-                else:
-                    combined_text = f"{text}{fraction}"
-            cleaned = clean_price_text(combined_text)
-            return cleaned, selector
-    return None, None
-
 def find_price_candidates(soup):
+    """Find all price-like text candidates in the soup."""
     price_regex = re.compile(r'(\$|€|£|¥|₹|USD|EUR|GBP|CAD|AUD|CHF|RUB|\bkr\b|\bPLN\b|\bCZK\b|\bSEK\b|\bNOK\b|\bDKK\b)?\s?\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?\s?(USD|EUR|GBP|CAD|AUD|CHF|RUB|kr|PLN|CZK|SEK|NOK|DKK|€|£|¥|₹)?', re.I)
     candidates = []
     for el in soup.find_all(string=True):
@@ -138,6 +105,7 @@ def find_price_candidates(soup):
     return candidates
 
 def get_css_selector(element):
+    """Build a CSS selector path for the given element."""
     path = []
     while element and element.name != '[document]':
         selector = element.name
@@ -157,6 +125,7 @@ def get_css_selector(element):
     return ' > '.join(path)
 
 def score_candidate(el, selector, text, font_size=None):
+    """Score a price candidate based on heuristics."""
     score = 0
     if re.search(r'price|amount|cost|total', selector, re.I):
         score += 5
@@ -181,35 +150,16 @@ def score_candidate(el, selector, text, font_size=None):
     return score
 
 def auto_detect_price(url):
-    html = fetch_html(url, use_js=False)
-    domain = get_domain(url)
-    known_price, known_selector = try_known_selectors(url, html, domain)
-    if known_price:
-        return known_price
+    """Always use Selenium to find the price and selector."""
+    html = fetch_html(url, use_js=True)
     soup = BeautifulSoup(html, 'lxml')
     candidates = find_price_candidates(soup)
     if not candidates:
-        html = fetch_html(url, use_js=True)
-        known_price, known_selector = try_known_selectors(url, html, domain)
-        if known_price:
-            return known_price
-        soup = BeautifulSoup(html, 'lxml')
-        candidates = find_price_candidates(soup)
-        if not candidates:
-            return None
+        return None, None, None
     scored = [(score_candidate(el, sel, txt, font_size), el, sel, txt) for el, sel, txt, font_size in candidates]
     scored.sort(key=lambda x: x[0], reverse=True)
     if not scored:
-        return None
+        return None, None, None
     best = scored[0]
     cleaned_best = clean_price_text(best[1].get_text(strip=True))
-    return cleaned_best
-
-if __name__ == "__main__":
-    while True:
-        url = input("enter url here:")
-        price = auto_detect_price(url)
-        if price:
-            print(f"Most likely price: {price}")
-        else:
-            print("Price not found.")
+    return cleaned_best, best[2], True  # Always return js=True

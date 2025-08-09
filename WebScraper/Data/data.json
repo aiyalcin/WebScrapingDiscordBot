@@ -112,15 +112,6 @@
         "id": 12,
         "js": true,
         "uuid": "00000000-0000-0000-0000-000000000012"
-      },
-      {
-        "name": "axyl_xy",
-        "url": "https://www.asos.com/nl/asos-design/asos-design-oversized-t-shirt-met-grafische-bloemenprint-in-beige/prd/208089821#colourWayId-208089831",
-        "selector": ".MwTOW",
-        "currentPrice": "19,99",
-        "id": 13,
-        "js": true,
-        "uuid": "00000000-0000-0000-0000-000000000013"
       }
     ]
   }

@@ -2,15 +2,45 @@ import json
 import os
 import LogHandler as lh
 import uuid
-json_path = "data/data.json"
+
+
+CONFIG_PATH = "config/guild_config.json"
+path_dataJson = "data/data.json"
+path_selectorDataJson = "data/selector_data.json"
 debug_json_path = "Data/debug_data.json"
 
-# Helper to switch between normal and debug json
+MAX_TRACKERS_PER_USER = 10
+MAX_GLOBAL_TRACKERS_PER_GUILD = 20
+
+def get_all_user_ids():
+    with open(get_active_json_path(), "r") as file:
+        data = json.load(file)
+    return list(data.get('users', {}).keys())
 
 def get_active_json_path():
     if os.path.exists(debug_json_path):
         return debug_json_path
-    return json_path
+    return path_dataJson
+
+def load_guild_config():
+    if not os.path.exists(CONFIG_PATH):
+        return {}
+    with open(CONFIG_PATH, "r") as f:
+        return json.load(f)
+
+def save_guild_config(config):
+    with open(CONFIG_PATH, "w") as f:
+        json.dump(config, f, indent=2)
+
+def load_selector_data():
+    if not os.path.exists(path_selectorDataJson):
+        return {}
+    with open(path_selectorDataJson, "r") as f:
+        return json.load(f)
+
+def save_selector_data(data):
+    with open(path_selectorDataJson, "w") as f:
+        json.dump(data, f, indent=2)
 
 # Get all trackers (global or user)
 def getAllJsonData(guild_id=None):
@@ -40,7 +70,8 @@ def addUserTracker(user_id, new_tracker):
         data = json.load(file)
     users = data.setdefault('users', {})
     user_tracks = users.setdefault(user_id, [])
-    # Assign a new short ID (per user) and a UUID
+    if len(user_tracks) >= MAX_TRACKERS_PER_USER:
+        return False
     all_ids = [t['id'] for t in user_tracks]
     new_id = max(all_ids) + 1 if all_ids else 1
     new_tracker['id'] = new_id
@@ -48,6 +79,7 @@ def addUserTracker(user_id, new_tracker):
     user_tracks.append(new_tracker)
     with open(get_active_json_path(), 'w') as file:
         json.dump(data, file, indent=2)
+    return True
 
 # For removing a user tracker
 def removeUserTracker(user_id, id):
@@ -98,15 +130,18 @@ def addTracker(new_tracker, guild_id):
             data = json.load(file)
         global_trackers = data.setdefault('global', {})
         guild_trackers = global_trackers.setdefault(guild_id, [])
-        # Assign a new short ID (per guild) and a UUID
+        if len(guild_trackers) >= MAX_GLOBAL_TRACKERS_PER_GUILD:
+            return False
         new_id = max([site['id'] for site in guild_trackers], default=0) + 1
         new_tracker['id'] = new_id
         new_tracker['uuid'] = str(uuid.uuid4())
         guild_trackers.append(new_tracker)
         with open(get_active_json_path(), 'w') as file:
             json.dump(data, file, indent=2)
+        return True
     except Exception as e:
         lh.log(f"Error adding tracker: {e}", "error")
+        return False
 
 # For removing a global tracker
 def removeTracker(id, guild_id):
@@ -135,17 +170,12 @@ def update_user_tracker_price(user_id, site_id, new_price):
     except Exception as e:
         lh.log(f"Error updating user tracker price: {e}", "error")
 
-# Update the name of a user tracker by user_id and site_id
-def update_user_tracker_name(user_id, site_id, new_name):
-    user_id = str(user_id)
+def get_selector_data():
     try:
         with open(get_active_json_path(), 'r') as file:
             data = json.load(file)
-        user_tracks = data.get('users', {}).get(user_id, [])
-        for tracker in user_tracks:
-            if tracker['id'] == site_id:
-                tracker['name'] = new_name
-        with open(get_active_json_path(), 'w') as file:
-            json.dump(data, file, indent=2)
+        return data.get('selector_data', {})
     except Exception as e:
-        lh.log(f"Error updating user tracker name: {e}", "error")
+        lh.log(f"Error retrieving selector data: {e}", "error")
+        return {}
+
