@@ -1,5 +1,4 @@
 ﻿import discord
-from discord.ext import commands
 import PriceTracker
 from dotenv import load_dotenv
 import os
@@ -407,6 +406,7 @@ async def addPrivateTracker(interaction: discord.Interaction, name: str, url: st
     else:
         await msg.edit(content="❌ Could not auto-detect a price. Please add the tracker manually.")
 
+
 @client.tree.command(name="addprivatetrackermanual", description="Adds a new private tracker to your list")
 async def addPrivateTracker(interaction: discord.Interaction, name: str, url: str, css_selector: str):
     lh.log(f"{get_user_display(interaction.user)} ran the addprivatetracker command.", "log")
@@ -565,5 +565,6 @@ async def set_scan_interval(interaction: discord.Interaction, interval: int):
     guild_id = str(interaction.guild.id)
     set_guild_setting(guild_id, "scan_interval", interval)
     await interaction.response.send_message(f"✅ Scan interval set to {interval} hours.")
+
 
 client.run(discordBotKey)
