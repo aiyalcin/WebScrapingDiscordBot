@@ -3,14 +3,47 @@ import os
 import LogHandler as lh
 import uuid
 
-
 CONFIG_PATH = "config/guild_config.json"
 path_dataJson = "data/data.json"
 path_selectorDataJson = "data/selector_data.json"
-debug_json_path = "Data/debug_data.json"
-
-MAX_TRACKERS_PER_USER = 10
+debug_json_path = "data/debug_data.json"
+USER_PERMS_PATH = "data/user_perms.json"
 MAX_GLOBAL_TRACKERS_PER_GUILD = 20
+DEFAULT_TRACKER_LIMIT = 5 
+
+# Helper: get per-user tracker limit, using exceptions in user_perms.json
+def get_user_tracker_limit(user_id):
+    try:
+        with open(USER_PERMS_PATH, "r") as file:
+            perms = json.load(file)
+        return perms.get("user_limits", {}).get(str(user_id), DEFAULT_TRACKER_LIMIT)
+    except Exception:
+        return DEFAULT_TRACKER_LIMIT
+
+# Helper: check if user is banned (limit 0 means banned)
+def is_user_banned(user_id):
+    return get_user_tracker_limit(user_id) == 0
+
+# For adding a user tracker (now uses per-user limit and ban check)
+def addUserTracker(user_id, new_tracker):
+    user_id = str(user_id)
+    if is_user_banned(user_id):
+        return False
+    with open(get_active_json_path(), 'r') as file:
+        data = json.load(file)
+    users = data.setdefault('users', {})
+    user_tracks = users.setdefault(user_id, [])
+    limit = get_user_tracker_limit(user_id)
+    if len(user_tracks) >= limit:
+        return False
+    all_ids = [t['id'] for t in user_tracks]
+    new_id = max(all_ids) + 1 if all_ids else 1
+    new_tracker['id'] = new_id
+    new_tracker['uuid'] = str(uuid.uuid4())
+    user_tracks.append(new_tracker)
+    with open(get_active_json_path(), 'w') as file:
+        json.dump(data, file, indent=2)
+    return True
 
 def get_all_user_ids():
     with open(get_active_json_path(), "r") as file:
@@ -62,24 +95,6 @@ def getUserTrackers(user_id):
     with open(get_active_json_path(), "r") as file:
         data = json.load(file)
     return data.get('users', {}).get(user_id, [])
-
-# For adding a user tracker
-def addUserTracker(user_id, new_tracker):
-    user_id = str(user_id)
-    with open(get_active_json_path(), 'r') as file:
-        data = json.load(file)
-    users = data.setdefault('users', {})
-    user_tracks = users.setdefault(user_id, [])
-    if len(user_tracks) >= MAX_TRACKERS_PER_USER:
-        return False
-    all_ids = [t['id'] for t in user_tracks]
-    new_id = max(all_ids) + 1 if all_ids else 1
-    new_tracker['id'] = new_id
-    new_tracker['uuid'] = str(uuid.uuid4())
-    user_tracks.append(new_tracker)
-    with open(get_active_json_path(), 'w') as file:
-        json.dump(data, file, indent=2)
-    return True
 
 # For removing a user tracker
 def removeUserTracker(user_id, id):
@@ -171,11 +186,23 @@ def update_user_tracker_price(user_id, site_id, new_price):
         lh.log(f"Error updating user tracker price: {e}", "error")
 
 def get_selector_data():
+    if not os.path.exists(path_selectorDataJson):
+        return {}
+    with open(path_selectorDataJson, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def update_user_tracker_name(user_id, tracker_id, new_name):
+    user_id = str(user_id)
     try:
         with open(get_active_json_path(), 'r') as file:
             data = json.load(file)
-        return data.get('selector_data', {})
+        user_tracks = data.get('users', {}).get(user_id, [])
+        for tracker in user_tracks:
+            if tracker['id'] == tracker_id:
+                tracker['name'] = new_name
+                break
+        with open(get_active_json_path(), 'w') as file:
+            json.dump(data, file, indent=2)
     except Exception as e:
-        lh.log(f"Error retrieving selector data: {e}", "error")
-        return {}
+        lh.log(f"Error updating tracker name for user {user_id}, tracker {tracker_id}: {e}", "error")
 

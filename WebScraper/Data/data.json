@@ -24,7 +24,7 @@
         "uuid": "00000000-0000-0000-0000-000000000003",
         "name": "Rugged powerbank",
         "url": "https://www.bever.nl/p/xtorm-rugged-powerbank-20-000-B3GA390059.html?colour=1243",
-        "selector": "#body-wrapper > div.a-grid-container > div.product-detail.base-component-ssr.parbase.a-contents > div > div > div > div.as-t-pdp-layout__item.as-t-pdp-layout__item--interaction-block > div.grid-row.parent > div:nth-child(2) > div.as-m-group.as-m-group--gutter.as-m-group--align.as-m-group--valign > div.as-a-price.as-a-price--spacing-xs.as-m-product-price.as-m-product-price--size-default > div.as-a-price__value.as-a-price__value--sell > span > strong",
+        "selector": ".as-a-text--discount > strong:nth-child(1)",
         "currentPrice": "84,96",
         "js": false
       },
@@ -42,7 +42,7 @@
         "uuid": "00000000-0000-0000-0000-000000000005",
         "name": "Gasbrander",
         "url": "https://www.bever.nl/p/jetboil-flash-1-0l-carbon-2-0-gasbrander-G4DB3A0089.html?colour=4246",
-        "selector": "#body-wrapper > div.a-grid-container > div.product-detail.base-component-ssr.parbase.a-contents > div > div > div > div.as-t-pdp-layout__item.as-t-pdp-layout__item--interaction-block > div.grid-row.parent > div:nth-child(2) > div > div > div > span > strong",
+        "selector": ".as-a-price__value > span:nth-child(1) > strong:nth-child(1)",
         "currentPrice": "144,95",
         "js": false
       },
@@ -51,7 +51,7 @@
         "uuid": "00000000-0000-0000-0000-000000000006",
         "name": "Black Diamond Classic Set 5-11 Nut",
         "url": "https://www.bever.nl/p/black-diamond-classic-set-5-11-nut-SCAAD22013.html?colour=5806",
-        "selector": "#body-wrapper > div.a-grid-container > div.product-detail.base-component-ssr.parbase.a-contents > div > div > div > div.as-t-pdp-layout__item.as-t-pdp-layout__item--interaction-block > div.grid-row.parent > div:nth-child(2) > div > div > div > span > strong",
+        "selector": ".as-a-price__value > span:nth-child(1) > strong:nth-child(1)",
         "currentPrice": "84,95",
         "js": false
       }

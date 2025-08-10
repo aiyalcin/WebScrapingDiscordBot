@@ -149,8 +149,31 @@ def score_candidate(el, selector, text, font_size=None):
         score += max(0, 10 - (el.sourceline // 100))
     return score
 
+def try_known_selectors(url):
+    domain = get_domain(url)
+    selector_data = JsonHandler.get_selector_data()
+    entry = selector_data.get(domain, {})
+    selectors = entry.get("selectors", []) if isinstance(entry, dict) else entry
+    js_required = entry.get("js", True) if isinstance(entry, dict) else True
+    if not selectors:
+        return None, None, None
+    html = fetch_html(url, use_js=js_required)
+    soup = BeautifulSoup(html, 'lxml')
+    for selector in selectors:
+        el = soup.select_one(selector)
+        if el:
+            price_text = el.get_text(strip=True)
+            cleaned = clean_price_text(price_text)
+            if cleaned:
+                return cleaned, selector, js_required
+    return None, None, None
+
 def auto_detect_price(url):
-    """Always use Selenium to find the price and selector."""
+    # Try known selectors first
+    price, selector, js_used = try_known_selectors(url)
+    if price is not None:
+        return price, selector, js_used
+    # Fallback to auto-detection
     html = fetch_html(url, use_js=True)
     soup = BeautifulSoup(html, 'lxml')
     candidates = find_price_candidates(soup)
