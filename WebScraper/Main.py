@@ -321,7 +321,7 @@ async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ Only administrators can add global trackers.", ephemeral=True)
         return
-    await interaction.response.send_message("Auto-detecting price using JavaScript rendering. One moment...")
+    await interaction.response.send_message("Auto-detecting price. One moment...")
     msg = await interaction.original_response()
     if not isValidUrl(url):
         await msg.edit(content="❌ Invalid URL!")
@@ -338,6 +338,11 @@ async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str
                     js_required = False
             except Exception:
                 pass
+            # Buffer new selector if domain is not in selector_data
+            domain = AutoDetectPrice.get_domain(url)
+            selector_data = JsonHandler.get_selector_data()
+            if domain not in selector_data:
+                JsonHandler.add_selector_to_buffer(domain, selector, js_required)
             new_tracker = {
                 "name": name,
                 "url": url,
@@ -366,7 +371,7 @@ async def addPrivateTracker(interaction: discord.Interaction, name: str, url: st
         await interaction.response.send_message("❌ Invalid tracker name! Name must be 3-50 characters and only contain letters, numbers, spaces, dashes, or underscores.")
         return
     lh.log(f"{get_user_display(interaction.user)} ran the addtrackerauto command.", "log")
-    await interaction.response.send_message("Auto-detecting price using JavaScript rendering. One moment...")
+    await interaction.response.send_message("Auto-detecting price. One moment...")
     msg = await interaction.original_response()
     user_id = str(interaction.user.id)
     if not isValidUrl(url):
@@ -384,6 +389,11 @@ async def addPrivateTracker(interaction: discord.Interaction, name: str, url: st
                     js_required = False
             except Exception:
                 pass
+            # Buffer new selector if domain is not in selector_data
+            domain = AutoDetectPrice.get_domain(url)
+            selector_data = JsonHandler.get_selector_data()
+            if domain not in selector_data:
+                JsonHandler.add_selector_to_buffer(domain, selector, js_required)
             new_tracker = {
                 "name": name,
                 "url": url,

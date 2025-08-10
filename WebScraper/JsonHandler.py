@@ -206,3 +206,23 @@ def update_user_tracker_name(user_id, tracker_id, new_name):
     except Exception as e:
         lh.log(f"Error updating tracker name for user {user_id}, tracker {tracker_id}: {e}", "error")
 
+def add_selector_to_buffer(domain, selector, js):
+    import os
+    import json
+    buffer_path = "data/selector_buffer.json"
+    if not os.path.exists(buffer_path):
+        buffer_data = {}
+    else:
+        with open(buffer_path, "r", encoding="utf-8") as f:
+            try:
+                buffer_data = json.load(f)
+            except Exception:
+                buffer_data = {}
+    entry = buffer_data.get(domain, {"selectors": [], "js": js})
+    if selector not in entry["selectors"]:
+        entry["selectors"].append(selector)
+    entry["js"] = js
+    buffer_data[domain] = entry
+    with open(buffer_path, "w", encoding="utf-8") as f:
+        json.dump(buffer_data, f, indent=2)
+
