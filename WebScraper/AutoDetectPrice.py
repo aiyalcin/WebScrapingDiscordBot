@@ -147,6 +147,12 @@ def score_candidate(el, selector, text, font_size=None):
         score += 8
     if hasattr(el, 'sourceline') and el.sourceline:
         score += max(0, 10 - (el.sourceline // 100))
+    if hasattr(el, 'sourceline') and el.sourceline:
+        score -= (el.sourceline // 50)
+    if re.search(r',-', text):
+        score += 5
+    if re.search(r'[a-zA-Z]{2,}', text):
+        score -= 5
     return score
 
 def try_known_selectors(url):
