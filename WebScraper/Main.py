@@ -25,11 +25,11 @@ initialWaitTimePrivate = 1
 
 if DEBUG:
     lh.log("Debug mode is enabled. Prices will now be written to the debug json file.", "warn")
-    if not os.path.exists("Data/debug_data.json"):
+    if not os.path.exists("data/debug_data.json"):
         shutil.copyfile("data/data.json", "data/debug_data.json")
 else:
-    if os.path.exists("Data/debug_data.json"):
-        os.remove("Data/debug_data.json")
+    if os.path.exists("data/debug_data.json"):
+        os.remove("data/debug_data.json")
 
 load_dotenv()
 
