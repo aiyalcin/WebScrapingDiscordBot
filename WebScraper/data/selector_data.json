@@ -1,27 +1,50 @@
 {
-  "amazon.com": [
-    ".a-price .a-offscreen",
-    ".a-price .a-price-whole",
-    ".a-price .a-price-fraction"
-  ],
-  "bol.com": [
-    ".promo-price"
-  ],
-  "megekko.nl": [
-    "a.prsPrice:nth-child(1)"
-  ],
-  "alternate.nl": [
-    ".price"
-  ],
-  "mediamarkt.nl": [
-    ".dsoNjd",
-    ".iTQalG"
-  ],
-  "bever.nl": [
-    ".as-a-text--discount > strong:nth-child(1)",
-    ".as-a-price__value > span:nth-child(1) > strong:nth-child(1)"
-  ],
-  "marktplaats.nl": [
-    "div.Listing-price"
-  ]
+  "amazon.com": {
+    "selectors": [
+      ".a-price .a-offscreen",
+      ".a-price .a-price-whole",
+      ".a-price .a-price-fraction"
+    ],
+    "js": true
+  },
+  "bol.com": {
+    "selectors": [
+      ".promo-price"
+    ],
+    "js": false
+  },
+  "megekko.nl": {
+    "selectors": [
+      "a.prsPrice:nth-child(1) > div:nth-child(1)",
+      "a.prsPrice:nth-child(1)"
+    ],
+    "js": false
+  },
+  "alternate.nl": {
+    "selectors": [
+      ".price"
+    ],
+    "js": false
+  },
+  "mediamarkt.nl": {
+    "selectors": [
+      ".dsoNjd",
+      ".iTQalG"
+    ],
+    "js": true
+  },
+  "bever.nl": {
+    "selectors": [
+      ".as-a-text--discount > strong:nth-child(1)",
+      ".as-a-price__value > span:nth-child(1) > strong:nth-child(1)"
+    ],
+    "js": false
+  },
+  "marktplaats.nl": {
+    "selectors": [
+      ".Listing-price",
+      "div.Listing-price"
+    ],
+    "js": false
+  }
 }

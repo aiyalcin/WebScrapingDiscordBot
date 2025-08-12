@@ -1,4 +1,5 @@
 ﻿import discord
+from discord.ext import commands
 import PriceTracker
 from dotenv import load_dotenv
 import os
@@ -21,8 +22,6 @@ import asyncio
 DEBUG = False
 initialWaitTimeGuild = 1
 initialWaitTimePrivate = 1
-MAX_TRACKERS_PER_USER = 10
-MAX_GLOBAL_TRACKERS_PER_GUILD = 20
 
 if DEBUG:
     lh.log("Debug mode is enabled. Prices will now be written to the debug json file.", "warn")
@@ -257,7 +256,7 @@ async def notify_selector_issue(tracker, user_id=None, guild_id=None):
         except Exception as e:
             lh.log(f"Failed to notify admins for guild {guild_id}: {e}", "error")
 
-@client.tree.command(name="showalltracks", description="Return list of all current trackers and their URL's")
+@client.tree.command(name="showalltracks", description="(Admin only)")
 async def showAllTracks(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ Only administrators can run this command.")
@@ -287,28 +286,29 @@ async def showAllTracks(interaction: discord.Interaction):
         await msg.edit(content=message)
     lh.log_done
 
-@client.tree.command(name="showmytracks", description="Show all your tracked items")
-async def showMyTracks(interaction: discord.Interaction):
-    lh.log(f"{get_user_display(interaction.user)} ran the showmytracks command.", "log")
+@client.tree.command(name="showmytrackers", description="Show all your tracked items")
+async def showMyTrackers(interaction: discord.Interaction):
+    lh.log(f"{get_user_display(interaction.user)} ran the showmytrackers command.", "log")
     await interaction.response.send_message("Processing your tracks. One moment...")
     msg = await interaction.original_response()
     user_id = str(interaction.user.id)
     user_tracks = JsonHandler.getUserTrackers(user_id)
     if not user_tracks:
-        await msg.edit(content="❌ You have no tracks yet.")
+        await msg.edit(content="❌ You have no trackers yet.")
         return
-    message = f"Tracks for {user_id}:\n"
+    user_name = get_user_display(interaction.user)
+    message = f"Trackers for {user_name}:\n"
     for data in user_tracks:
         message += f"ID: {data['id']} | Name: {data['name']} | URL: {data['url']}\n"
     MAX_MESSAGE_LENGTH = 2000
     if len(message) > MAX_MESSAGE_LENGTH:
         from io import StringIO
-        file = discord.File(fp=StringIO(message), filename="my_tracks.txt")
-        await msg.edit(content="❌ Your list of tracks is too long for a message. See the attached file:", attachments=[file])
+        file = discord.File(fp=StringIO(message), filename="my_trackers.txt")
+        await msg.edit(content="❌ Your list of trackers is too long for a message. See the attached file:", attachments=[file])
     else:
         await msg.edit(content=message)
 
-@client.tree.command(name="addglobaltracker", description="Adds a new global tracker to the list")
+@client.tree.command(name="addglobaltracker", description="(Admin only)")
 async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str):
     if not is_valid_tracker_name(name):
         await interaction.response.send_message("❌ Invalid tracker name! Name must be 3-50 characters and only contain letters, numbers, spaces, dashes, or underscores.")
@@ -321,7 +321,7 @@ async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ Only administrators can add global trackers.", ephemeral=True)
         return
-    await interaction.response.send_message("Auto-detecting price using JavaScript rendering. One moment...")
+    await interaction.response.send_message("Auto-detecting price. One moment...")
     msg = await interaction.original_response()
     if not isValidUrl(url):
         await msg.edit(content="❌ Invalid URL!")
@@ -338,6 +338,11 @@ async def addGlobalTracker(interaction: discord.Interaction, name: str, url: str
                     js_required = False
             except Exception:
                 pass
+            # Buffer new selector if domain is not in selector_data
+            domain = AutoDetectPrice.get_domain(url)
+            selector_data = JsonHandler.get_selector_data()
+            if domain not in selector_data:
+                JsonHandler.add_selector_to_buffer(domain, selector, js_required)
             new_tracker = {
                 "name": name,
                 "url": url,
@@ -366,7 +371,7 @@ async def addPrivateTracker(interaction: discord.Interaction, name: str, url: st
         await interaction.response.send_message("❌ Invalid tracker name! Name must be 3-50 characters and only contain letters, numbers, spaces, dashes, or underscores.")
         return
     lh.log(f"{get_user_display(interaction.user)} ran the addtrackerauto command.", "log")
-    await interaction.response.send_message("Auto-detecting price using JavaScript rendering. One moment...")
+    await interaction.response.send_message("Auto-detecting price. One moment...")
     msg = await interaction.original_response()
     user_id = str(interaction.user.id)
     if not isValidUrl(url):
@@ -384,6 +389,11 @@ async def addPrivateTracker(interaction: discord.Interaction, name: str, url: st
                     js_required = False
             except Exception:
                 pass
+            # Buffer new selector if domain is not in selector_data
+            domain = AutoDetectPrice.get_domain(url)
+            selector_data = JsonHandler.get_selector_data()
+            if domain not in selector_data:
+                JsonHandler.add_selector_to_buffer(domain, selector, js_required)
             new_tracker = {
                 "name": name,
                 "url": url,
@@ -407,7 +417,7 @@ async def addPrivateTracker(interaction: discord.Interaction, name: str, url: st
         await msg.edit(content="❌ Could not auto-detect a price. Please add the tracker manually.")
 
 
-@client.tree.command(name="addprivatetrackermanual", description="Adds a new private tracker to your list")
+@client.tree.command(name="addprivatetrackermanual", description="Adds a new private tracker to your list using css selector")
 async def addPrivateTracker(interaction: discord.Interaction, name: str, url: str, css_selector: str):
     lh.log(f"{get_user_display(interaction.user)} ran the addprivatetracker command.", "log")
     lh.log("Starting addprivatetracker command.", "log")
@@ -526,7 +536,7 @@ async def removeTracker(interaction: discord.Interaction, id: int):
     lh.log(f"User {user_id} tried to remove invalid or unauthorized tracker id {id})", "warn")
     await interaction.followup.send("❌ Invalid tracker id.", suppress_embeds=True)
 
-@client.tree.command(name="setpublicchannel", description="Set the public channel for price and tracker updates")
+@client.tree.command(name="setpublicchannel", description="(Admin only)")
 async def set_public_channel(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ Only administrators can set the public channel.")
@@ -537,7 +547,7 @@ async def set_public_channel(interaction: discord.Interaction):
     set_guild_setting(guild_id, "channel_id", channel_id, guild_name)
     await interaction.response.send_message("✅ This channel is now set for public price and tracker notifications.")
 
-@client.tree.command(name="setlogchannel", description="Set the log channel for bot status updates (still running messages)")
+@client.tree.command(name="setlogchannel", description="(Admin only)")
 async def set_log_channel(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ Only administrators can set the log channel.")
@@ -548,7 +558,7 @@ async def set_log_channel(interaction: discord.Interaction):
     set_guild_setting(guild_id, "log_channel_id", channel_id, guild_name)
     await interaction.response.send_message("✅ This channel is now set for bot status updates.")
 
-@client.tree.command(name="setcheckininterval", description="Set check-in interval (hours)")
+@client.tree.command(name="setcheckininterval", description="(Admin only)")
 async def set_checkin_interval(interaction: discord.Interaction, interval: int):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ Only administrators can set the check-in interval.")
@@ -557,7 +567,7 @@ async def set_checkin_interval(interaction: discord.Interaction, interval: int):
     set_guild_setting(guild_id, "checkin_interval", interval)
     await interaction.response.send_message(f"✅ Check-in interval set to {interval} hours.")
 
-@client.tree.command(name="setscaninterval", description="Set scan interval (hours)")
+@client.tree.command(name="setscaninterval", description="(Admin only)")
 async def set_scan_interval(interaction: discord.Interaction, interval: int):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ Only administrators can set the scan interval.")
@@ -565,6 +575,5 @@ async def set_scan_interval(interaction: discord.Interaction, interval: int):
     guild_id = str(interaction.guild.id)
     set_guild_setting(guild_id, "scan_interval", interval)
     await interaction.response.send_message(f"✅ Scan interval set to {interval} hours.")
-
 
 client.run(discordBotKey)

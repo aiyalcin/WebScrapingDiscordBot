@@ -34,8 +34,7 @@ def get_site_html(url, selector, use_js):
     else:
         return requests.get(url).text
 
-async def extractPrice(object, DEBUG, guild_id=None, user_id=None, discord_notify=None):
-    # Wrap the blocking logic in a thread for true async
+async def extractPrice(object, DEBUG, guild_id=None, user_id=None, discord_notify=None, loop=None):
     def blocking_scrape():
         lh.log(f"Now scraping ID: {object['id']}", "log")
         try:
@@ -51,26 +50,53 @@ async def extractPrice(object, DEBUG, guild_id=None, user_id=None, discord_notif
             soup = BeautifulSoup(html_text, "lxml")
             lh.log(f"Using selector: {selector}", "log")
             price_element = soup.select_one(selector)
+            # If not found, try all known selectors for the domain, update selector if found
             if not price_element:
                 domain = urlparse(url).netloc.replace('www.', '')
-                try:
-                    with open('data/selector_data.json', 'r') as f:
-                        selector_data = json.load(f)
-                    selectors = selector_data.get(domain, [])
-                    for alt_selector in selectors:
-                        if alt_selector == selector:
-                            continue
-                        price_element = soup.select_one(alt_selector)
-                        if price_element:
-                            selector = alt_selector
-                            break
-                except Exception as e:
-                    lh.log(f"Error loading selector_data.json: {e}", "error")
+                selector_data = JsonHandler.get_selector_data()
+                entry = selector_data.get(domain, {})
+                selectors = entry.get("selectors", []) if isinstance(entry, dict) else entry
+                js_required = entry.get("js", use_js) if isinstance(entry, dict) else use_js
+                for alt_selector in selectors:
+                    if alt_selector == selector:
+                        continue
+                    html_text_alt = get_site_html(url, alt_selector, js_required)
+                    soup_alt = BeautifulSoup(html_text_alt, "lxml")
+                    price_element = soup_alt.select_one(alt_selector)
+                    if price_element:
+                        selector = alt_selector
+                        # Update the selector in the data file safely
+                        data_path = JsonHandler.get_active_json_path()
+                        with open(data_path, 'r') as f:
+                            data = json.load(f)
+                        updated = False
+                        if guild_id is not None:
+                            for site in data.get('global', {}).get(str(guild_id), []):
+                                if site['id'] == object['id']:
+                                    site['selector'] = selector
+                                    updated = True
+                                    break
+                        elif user_id is not None:
+                            for tracker in data.get('users', {}).get(str(user_id), []):
+                                if tracker['id'] == object['id']:
+                                    tracker['selector'] = selector
+                                    updated = True
+                                    break
+                        if updated:
+                            with open(data_path, 'w') as f:
+                                json.dump(data, f, indent=2)
+                        break
             if not price_element:
-                lh.log(f"Could not find price element for {object['name']} with any known selector. Item might be sold out or selector has changed.", "warn")
+                lh.log(f"Could not find price element for {object['name']} with any known selector. Item might be sold out, on sale, or the selector has changed.", "warn")
                 if discord_notify:
-                    # This is still awaited in the main async context
-                    asyncio.run_coroutine_threadsafe(discord_notify(object, user_id), asyncio.get_event_loop())
+                    _loop = loop
+                    if _loop is None:
+                        try:
+                            _loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            _loop = None
+                    if _loop:
+                        asyncio.run_coroutine_threadsafe(discord_notify(object, user_id), _loop)
                 return None
             price_text = price_element.get_text(strip=True)
             lh.log(f"Extracted price text for {object['name']}: '{price_text}'", "log")
