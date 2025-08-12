@@ -11,6 +11,7 @@ USER_PERMS_PATH = "data/user_perms.json"
 MAX_GLOBAL_TRACKERS_PER_GUILD = 20
 DEFAULT_TRACKER_LIMIT = 5 
 
+
 # Helper: get per-user tracker limit, using exceptions in user_perms.json
 def get_user_tracker_limit(user_id):
     try:
