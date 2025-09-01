@@ -137,7 +137,6 @@ class Client(commands.Bot):
                     if user_id:
                         try:
                             user = await self.fetch_user(user_id)
-                            JsonHandler.update_user_tracker_name(user_id, price['id'], user.name)
                             embed = discord.Embed(
                                 title=f"Price Change for '{price['name']}'",
                                 description="Your tracker has detected a price change!",
