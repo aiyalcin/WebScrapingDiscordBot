@@ -35,8 +35,9 @@
   },
   "bever.nl": {
     "selectors": [
-      ".as-a-text--discount > strong:nth-child(1)",
-      ".as-a-price__value > span:nth-child(1) > strong:nth-child(1)"
+        ".as-a-text--discount > strong:nth-child(1)",
+        ".as-a-price__value > span:nth-child(1) > strong:nth-child(1)",
+        ".a\\:text-xl"
     ],
     "js": false
   },
