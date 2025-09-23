@@ -11,6 +11,8 @@ import json
 from urllib.parse import urlparse
 import asyncio
 from AutoDetectPrice import clean_price_text
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 if platform.system() == "Windows":
     GECKODRIVER_PATH = r"C:\\Coding\\Github\\WebScrapingDiscordBot\\WebScraper\\bin\\geckodriver\\geckodriver.exe"
@@ -25,8 +27,12 @@ def get_site_html(url, selector, use_js):
         driver = webdriver.Firefox(service=service, options=options)
         driver.get(url)
         try:
+            # Wait until the element has non-empty text
+            price_element = WebDriverWait(driver, 10).until(
+            EC.text_to_be_present_in_element((By.CSS_SELECTOR, selector), ""))
+            # Now actually grab the element again
             price_element = driver.find_element(By.CSS_SELECTOR, selector)
-            html = price_element.get_attribute('outerHTML')
+            price_text = price_element.text
         except Exception:
             html = driver.page_source
         driver.quit()
