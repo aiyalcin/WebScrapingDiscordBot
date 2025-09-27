@@ -3,3 +3,5 @@ WebScraper/config.json
 .vs/
 WebScraper/bin
 WebScraper/__pycache__
+WebScraper/data/
+WebScraper/Logs/
