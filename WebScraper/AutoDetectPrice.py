@@ -8,7 +8,8 @@ from urllib.parse import urlparse
 import JsonHandler
 
 if platform.system() == "Windows":
-    GECKODRIVER_PATH = r"C:\\Coding\\Github\\WebScrapingDiscordBot\\WebScraper\\bin\\geckodriver\\geckodriver.exe"
+    #GECKODRIVER_PATH = r"C:\\Coding\\Github\\WebScrapingDiscordBot\\WebScraper\\bin\\geckodriver\\geckodriver.exe"
+    GECKODRIVER_PATH = r"C:\Users\adami\Desktop\Personal-Github\WebScrapingDiscordBot\WebScraper\bin\geckodriver\geckodriver.exe"
 else:
     GECKODRIVER_PATH = "/usr/bin/geckodriver"
 
@@ -104,8 +105,11 @@ def find_price_candidates(soup):
             candidates.append((parent, selector, text, font_size))
     return candidates
 
+def escape_class(cls):
+    # Escape . : [ ] for CSS selectors
+    return re.sub(r'([\.:\[\]])', r'\\\1', cls)
+
 def get_css_selector(element):
-    """Build a CSS selector path for the given element."""
     path = []
     while element and element.name != '[document]':
         selector = element.name
@@ -114,7 +118,9 @@ def get_css_selector(element):
             path.insert(0, selector)
             break
         elif element.get('class'):
-            selector += '.' + '.'.join(element['class'])
+            valid_classes = [escape_class(cls) for cls in element.get('class', []) if not any(c in cls for c in '[]:')]
+            if valid_classes:
+                selector += '.' + '.'.join(valid_classes)
         siblings = element.find_previous_siblings(element.name)
         if siblings:
             selector += f":nth-child({len(siblings)+1})"

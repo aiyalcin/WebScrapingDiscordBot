@@ -1,0 +1,23 @@
+{
+  "snowleader.nl": {
+    "selectors": [
+      "div.c-product-price__final"
+    ],
+    "js": false
+  },
+  "arcteryx.com": {
+    "selectors": [
+      "span.sc-e87951b-1.cunLyd.product-primary-price.secondary-price"
+    ],
+    "js": false
+  },
+  "bergfreunde.nl": {
+    "selectors": [
+      "div.w-full.flex.items-baseline.flex-wrap > span.js-uvp.flex.pr-2.5.text-xl.leading-none.line-through.pb-1.basis-full.lg:pb-0.lg:basis-auto:nth-child(2) > span.js-fprice:nth-child(2)",
+      "div.w-full.flex.items-baseline.flex-wrap > span.js-price.text-xl.flex.gap-x-1.leading-none.[&>span]:gap-x-1.mr-1.5.text-2xl.lg:text-3xl:nth-child(2) > span.js-fprice:nth-child(2) > span",
+      "div.w-full.flex.items-baseline.flex-wrap > span.js-price.text-xl.flex.gap-x-1.leading-none.mr-1.5.text-2xl:nth-child(2) > span.js-fprice:nth-child(2) > span",
+      "div.w-full.flex.items-baseline.flex-wrap > span.js-price.text-xl.flex.gap-x-1.leading-none.mr-1\\.5.text-2xl:nth-child(2) > span.js-fprice:nth-child(2) > span"
+    ],
+    "js": false
+  }
+}

@@ -8,33 +8,57 @@ import JsonHandler
 import LogHandler as lh
 import platform
 import json
+import os
 from urllib.parse import urlparse
 import asyncio
 from AutoDetectPrice import clean_price_text
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-if platform.system() == "Windows":
-    GECKODRIVER_PATH = r"C:\\Coding\\Github\\WebScrapingDiscordBot\\WebScraper\\bin\\geckodriver\\geckodriver.exe"
-else:
-    GECKODRIVER_PATH = "/usr/bin/geckodriver"
+def file_exists(path):
+    if os.path.isfile(path):
+        return True
+    else:
+        return False
 
-def get_site_html(url, selector, use_js):
+if platform.system() == "Windows":
+    lh.log("Using windows geckodriver path", "warn")
+    #GECKODRIVER_PATH = r"C:\\Coding\\Github\\WebScrapingDiscordBot\\WebScraper\\bin\\geckodriver\\geckodriver.exe"
+    GECKODRIVER_PATH = r"C:\Users\adami\Desktop\Personal-Github\WebScrapingDiscordBot\WebScraper\bin\geckodriver\geckodriver.exe"
+    lh.log("Using geckodriver path: " + GECKODRIVER_PATH, "log")
+    if file_exists(GECKODRIVER_PATH):
+        lh.log("geckodriver found", "success")
+    else:
+        lh.log("geckodriver not found, please install it", "error")
+        exit(1)
+else:
+    lh.log("Using linux geckodriver path", "warn")
+    GECKODRIVER_PATH = "/usr/bin/geckodriver"
+    lh.log("Using geckodriver path: " + GECKODRIVER_PATH, "log")
+    if file_exists(GECKODRIVER_PATH):
+        lh.log("geckodriver found", "success")
+    else:
+        lh.log("geckodriver not found, please install it", "error")
+        exit(1)
+
+def get_site_html(url, selector, use_js):   
     if use_js:
         options = webdriver.FirefoxOptions()
         options.add_argument('--headless')
         service = Service(GECKODRIVER_PATH)
         driver = webdriver.Firefox(service=service, options=options)
         driver.get(url)
+        html = driver.page_source  # Always assign html
         try:
             # Wait until the element has non-empty text
-            price_element = WebDriverWait(driver, 10).until(
-            EC.text_to_be_present_in_element((By.CSS_SELECTOR, selector), ""))
-            # Now actually grab the element again
+            WebDriverWait(driver, 10).until(
+                EC.text_to_be_present_in_element((By.CSS_SELECTOR, selector), "")
+            )
             price_element = driver.find_element(By.CSS_SELECTOR, selector)
             price_text = price_element.text
+            html = price_element.get_attribute('outerHTML')
         except Exception:
-            html = driver.page_source
+            pass  # html is already assigned
         driver.quit()
         return html
     else:
@@ -56,44 +80,59 @@ async def extractPrice(object, DEBUG, guild_id=None, user_id=None, discord_notif
             soup = BeautifulSoup(html_text, "lxml")
             lh.log(f"Using selector: {selector}", "log")
             price_element = soup.select_one(selector)
-            # If not found, try all known selectors for the domain, update selector if found
+            
             if not price_element:
+                
                 domain = urlparse(url).netloc.replace('www.', '')
                 selector_data = JsonHandler.get_selector_data()
                 entry = selector_data.get(domain, {})
                 selectors = entry.get("selectors", []) if isinstance(entry, dict) else entry
                 js_required = entry.get("js", use_js) if isinstance(entry, dict) else use_js
+
                 for alt_selector in selectors:
+                    
                     if alt_selector == selector:
                         continue
+                    
                     html_text_alt = get_site_html(url, alt_selector, js_required)
                     soup_alt = BeautifulSoup(html_text_alt, "lxml")
                     price_element = soup_alt.select_one(alt_selector)
+
                     if price_element:
                         selector = alt_selector
-                        # Update the selector in the data file safely
                         data_path = JsonHandler.get_active_json_path()
+
                         with open(data_path, 'r') as f:
                             data = json.load(f)
+
                         updated = False
+
                         if guild_id is not None:
                             for site in data.get('global', {}).get(str(guild_id), []):
                                 if site['id'] == object['id']:
                                     site['selector'] = selector
                                     updated = True
                                     break
+
                         elif user_id is not None:
+
                             for tracker in data.get('users', {}).get(str(user_id), []):
+
                                 if tracker['id'] == object['id']:
+
                                     tracker['selector'] = selector
                                     updated = True
                                     break
                         if updated:
+
                             with open(data_path, 'w') as f:
                                 json.dump(data, f, indent=2)
                         break
+
             if not price_element:
+
                 lh.log(f"Could not find price element for {object['name']} with any known selector. Item might be sold out, on sale, or the selector has changed.", "warn")
+
                 if discord_notify:
                     _loop = loop
                     if _loop is None:
